@@ -220,6 +220,20 @@
     line-height: 1.6;
   }
 
+  /* CALC NOTE (collapsible) */
+  .calc-note { background: var(--bg-secondary); border: 1px solid var(--border); border-left: 3px solid var(--green); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin-bottom: 1.5rem; }
+  .calc-note > summary { cursor: pointer; padding: 10px 14px; font-size: 13px; font-weight: 600; color: var(--text-secondary); list-style: none; user-select: none; }
+  .calc-note > summary::-webkit-details-marker { display: none; }
+  .calc-note > summary::before { content: '▸'; display: inline-block; margin-right: 8px; transition: transform .15s ease; }
+  .calc-note[open] > summary::before { transform: rotate(90deg); }
+  .calc-note-body { padding: 0 16px 12px 30px; font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+  .calc-note-body p { margin: 4px 0 8px; }
+  .calc-note-body ol { margin: 8px 0; padding-left: 18px; }
+  .calc-note-body ol > li { margin-bottom: 6px; }
+  .calc-note-body ul { margin: 4px 0; padding-left: 18px; }
+  .calc-note-keys { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 4px; }
+  .calc-green { color: var(--green-dark); font-weight: 600; }
+
   /* SCHEDULE */
   .schedule-day { margin-bottom: 1.75rem; }
   .schedule-date-header { font-family: 'Teko', sans-serif; font-size: 22px; font-weight: 600; padding: 6px 0 8px; border-bottom: 2px solid var(--green); margin-bottom: 8px; color: var(--text); }
@@ -340,7 +354,27 @@
   </div>
 
   <div id="tab-today" class="tab-panel">
-    <div class="info-banner">Each name appears under the result that's best for their bracket. We project the rest of every group the way that person predicted, then score group finishes (25/15/10/5) <em>and</em> third-place advancement (+5 each). "/ draw ok" means a draw also works for them; a green chip means their good result is happening right now.</div>
+    <details class="calc-note">
+      <summary>ℹ️ How are these rooting estimates calculated?</summary>
+      <div class="calc-note-body">
+        <p>For each person, and each of today's games, we test all three results — home win, draw, away win — and pick the one that's best for their predictions:</p>
+        <ol>
+          <li><strong>Project the rest of every group</strong> to completion, assuming the remaining games finish the way that person predicted.</li>
+          <li><strong>Score each projected result</strong> the same way as the leaderboard:
+            <ul>
+              <li>Group finish — 1st <strong>25</strong> · 2nd <strong>15</strong> · 3rd <strong>10</strong> · 4th <strong>5</strong></li>
+              <li>Third-place advance — <strong>+5</strong> for each of their picks that lands in the top-8 third-place teams</li>
+            </ul>
+          </li>
+          <li>Whichever result scores highest is the column their name appears in.</li>
+        </ol>
+        <p class="calc-note-keys">
+          • The number on a chip (e.g. "2nd") is where they predicted that team to finish.<br>
+          • "/ draw ok" means a draw ties as a best result too.<br>
+          • A <span class="calc-green">green chip</span> means their good result is happening right now.
+        </p>
+      </div>
+    </details>
     <div id="today-content"></div>
   </div>
 
