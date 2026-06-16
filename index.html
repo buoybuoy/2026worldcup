@@ -705,11 +705,20 @@ function bestMatchResult(name,g,h,a){
   if(!pred)return null;
   const hPos=pred.indexOf(h),aPos=pred.indexOf(a);
   const key=g+'|'+h+'|'+a;
+  const predRank=t=>{const i=pred.indexOf(t);return i<0?99:i;};
   function simPts(outcome){
+    // Real played results + this match's tested outcome; all other games
+    // assumed to follow THIS participant's predicted order (higher pick wins).
     const tmp=Object.assign({},scores);
     if(outcome==='home')tmp[key]=['1','0'];
     else if(outcome==='draw')tmp[key]=['0','0'];
     else tmp[key]=['0','1'];
+    MATCHES[g].forEach(([mh,ma])=>{
+      const k=g+'|'+mh+'|'+ma;
+      const sc=tmp[k];
+      if(sc&&sc[0]!==''&&sc[1]!=='')return; // real result or tested match
+      tmp[k]=predRank(mh)<predRank(ma)?['1','0']:['0','1'];
+    });
     const teams=GROUPS[g].map(t=>({name:t,w:0,d:0,l:0,gf:0,ga:0,pts:0}));
     MATCHES[g].forEach(([mh,ma])=>{
       const sc=tmp[g+'|'+mh+'|'+ma];
@@ -720,7 +729,8 @@ function bestMatchResult(name,g,h,a){
       ht.gf+=hg;ht.ga+=ag;at.gf+=ag;at.ga+=hg;
       if(hg>ag){ht.w++;ht.pts+=3;at.l++;}else if(hg<ag){at.w++;at.pts+=3;ht.l++;}else{ht.d++;at.d++;ht.pts++;at.pts++;}
     });
-    const st=teams.sort((x,y)=>y.pts-x.pts||(y.gf-y.ga)-(x.gf-x.ga)||y.gf-x.gf);
+    // Standings tiebreak falls back to the participant's predicted order
+    const st=teams.sort((x,y)=>y.pts-x.pts||(y.gf-y.ga)-(x.gf-x.ga)||y.gf-x.gf||predRank(x.name)-predRank(y.name));
     let pts=0;st.forEach((t,i)=>{if(pred[i]&&t.name===pred[i])pts+=POS_PTS[i];});
     return pts;
   }
@@ -837,12 +847,15 @@ function renderToday(){
       const res=bestMatchResult(name,g,h,a);
       if(!res)return;
       const{hp,dp,rp,mx,hPos,aPos}=res;
-      if(dp===mx){
-        drawFans.push({name,hPos,aPos,hp,dp,rp,mx});
-      } else if(hp>=rp){
-        hFans.push({name,pos:hPos});
+      const homeBest=hp===mx,drawBest=dp===mx,awayBest=rp===mx;
+      if(homeBest&&!awayBest){
+        // home win is (tied) best; a draw may also work
+        hFans.push({name,pos:hPos,drawOk:drawBest});
+      } else if(awayBest&&!homeBest){
+        aFans.push({name,pos:aPos,drawOk:drawBest});
       } else {
-        aFans.push({name,pos:aPos});
+        // draw strictly best, or both wins equally good → put in the Draw column
+        drawFans.push({name,hPos,aPos,hp,dp,rp,mx});
       }
     });
     hFans.sort((x,y)=>x.pos-y.pos);
@@ -851,7 +864,7 @@ function renderToday(){
 
     const winChips=(fans,won)=>fans.length===0
       ?`<span class="no-fans-label">—</span>`
-      :fans.map(f=>`<span class="fan-chip${won?' advancing':''}">${esc(f.name)} <span class="fan-pos">${posLabel[f.pos]}</span></span>`).join('');
+      :fans.map(f=>`<span class="fan-chip${won?' advancing':''}">${esc(f.name)} <span class="fan-pos">${posLabel[f.pos]}${f.drawOk?' / draw ok':''}</span></span>`).join('');
     const drawChipsHtml=drawFans.length===0
       ?`<span class="no-fans-label">—</span>`
       :drawFans.map(f=>{
