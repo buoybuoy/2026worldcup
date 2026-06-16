@@ -268,6 +268,22 @@
     .today-fans-col.center .today-fans, .today-fans-col.right .today-fans { justify-content: flex-start; }
     .pred-select { max-width: 100%; }
   }
+  /* KNOCKOUT */
+  .ko-date-header { font-family: 'Teko', sans-serif; font-size: 18px; font-weight: 600; color: var(--text-secondary); margin: 20px 0 8px; }
+  .ko-date-header:first-child { margin-top: 0; }
+  .ko-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 12px; }
+  .ko-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 8px; }
+  .ko-meta { font-size: 12px; color: var(--text-secondary); }
+  .ko-venue { font-size: 12px; color: var(--text-secondary); text-align: right; }
+  .ko-matchup { display: flex; align-items: center; gap: 10px; }
+  .ko-team { flex: 1; }
+  .ko-team.right { text-align: right; }
+  .ko-slot-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
+  .ko-team-name { font-family: 'Teko', sans-serif; font-size: 20px; font-weight: 600; line-height: 1.1; }
+  .ko-team-name.tbd { color: var(--text-secondary); font-size: 15px; }
+  .ko-vs { font-family: 'Teko', sans-serif; font-size: 18px; color: var(--text-secondary); flex-shrink: 0; }
+  .ko-pool-note { font-size: 11px; color: var(--text-secondary); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .ko-pool-note .ko-candidate { color: var(--text); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -289,6 +305,7 @@
     <button class="tab-btn" onclick="switchTab('scores')">⚽ Scores</button>
     <button class="tab-btn" onclick="switchTab('schedule')">📆 Schedule</button>
     <button class="tab-btn" onclick="switchTab('advancing')">🎯 3rd Place</button>
+    <button class="tab-btn" onclick="switchTab('knockout')">🏟️ Knockout</button>
   </div>
 
   <div id="tab-leaderboard" class="tab-panel active">
@@ -348,6 +365,11 @@
     <div class="info-banner">Top 8 third-place teams ranked by pts → goal difference → goals scored. Updates live as group results come in. Each friend earns <strong>+5 pts</strong> per correct pick.</div>
     <div class="advance-count" id="advance-count">0 / 8 teams marked</div>
     <div class="advance-grid" id="advancing-content"></div>
+  </div>
+
+  <div id="tab-knockout" class="tab-panel">
+    <div class="info-banner">Projected Round of 32 matchups based on current standings. 3rd-place opponents show the projected team from the eligible pool — final slot assignment done by FIFA after group stage ends.</div>
+    <div id="knockout-content"></div>
   </div>
 </div>
 
@@ -454,6 +476,26 @@ const FRIENDS_PREDS = {
   '光榮的人民主席 Chairman Lau':{A:['Mexico','South Korea','South Africa','Czechia'],B:['Qatar','Canada','Switzerland','Bosnia and Herzegovina'],C:['Brazil','Morocco','Scotland','Haiti'],D:['USA','Türkiye','Australia','Paraguay'],E:['Germany','Ivory Coast','Ecuador','Curaçao'],F:['Netherlands','Japan','Sweden','Tunisia'],G:['Belgium','New Zealand','Egypt','Iran'],H:['Spain','Uruguay','Saudi Arabia','Cape Verde'],I:['France','Norway','Senegal','Iraq'],J:['Argentina','Algeria','Austria','Jordan'],K:['Portugal','Colombia','DR Congo','Uzbekistan'],L:['England','Croatia','Panama','Ghana']},
 };
 
+// Round of 32 — all times converted to PT. Slot types: ru-ru, w-ru, w-3rd.
+const KNOCKOUT_R32=[
+  {num:73,date:'2026-06-28',time:'12:00',venue:'SoFi Stadium',city:'Inglewood, CA',slot:{type:'ru-ru',a:'A',b:'B'}},
+  {num:76,date:'2026-06-29',time:'10:00',venue:'NRG Stadium',city:'Houston, TX',slot:{type:'w-ru',w:'C',ru:'F'}},
+  {num:74,date:'2026-06-29',time:'13:30',venue:'Gillette Stadium',city:'Foxborough, MA',slot:{type:'w-3rd',w:'E',pool:['A','B','C','D','F']}},
+  {num:75,date:'2026-06-29',time:'18:00',venue:'Estadio BBVA',city:'Guadalupe, Mexico',slot:{type:'w-ru',w:'F',ru:'C'}},
+  {num:78,date:'2026-06-30',time:'10:00',venue:'AT&T Stadium',city:'Arlington, TX',slot:{type:'ru-ru',a:'E',b:'I'}},
+  {num:77,date:'2026-06-30',time:'14:00',venue:'MetLife Stadium',city:'East Rutherford, NJ',slot:{type:'w-3rd',w:'I',pool:['C','D','F','G','H']}},
+  {num:79,date:'2026-06-30',time:'18:00',venue:'Estadio Azteca',city:'Mexico City',slot:{type:'w-3rd',w:'A',pool:['C','E','F','H','I']}},
+  {num:80,date:'2026-07-01',time:'09:00',venue:'Mercedes-Benz Stadium',city:'Atlanta, GA',slot:{type:'w-3rd',w:'L',pool:['E','H','I','J','K']}},
+  {num:82,date:'2026-07-01',time:'13:00',venue:'Lumen Field',city:'Seattle, WA',slot:{type:'w-3rd',w:'G',pool:['A','E','H','I','J']}},
+  {num:81,date:'2026-07-01',time:'17:00',venue:"Levi's Stadium",city:'Santa Clara, CA',slot:{type:'w-3rd',w:'D',pool:['B','E','F','I','J']}},
+  {num:84,date:'2026-07-02',time:'12:00',venue:'SoFi Stadium',city:'Inglewood, CA',slot:{type:'w-ru',w:'H',ru:'J'}},
+  {num:83,date:'2026-07-02',time:'16:00',venue:'BMO Field',city:'Toronto, Canada',slot:{type:'ru-ru',a:'K',b:'L'}},
+  {num:85,date:'2026-07-02',time:'20:00',venue:'BC Place',city:'Vancouver, Canada',slot:{type:'w-3rd',w:'B',pool:['E','F','G','I','J']}},
+  {num:88,date:'2026-07-03',time:'11:00',venue:'AT&T Stadium',city:'Arlington, TX',slot:{type:'ru-ru',a:'D',b:'G'}},
+  {num:86,date:'2026-07-03',time:'15:00',venue:'Hard Rock Stadium',city:'Miami Gardens, FL',slot:{type:'w-ru',w:'J',ru:'H'}},
+  {num:87,date:'2026-07-03',time:'18:30',venue:'Arrowhead Stadium',city:'Kansas City, MO',slot:{type:'w-3rd',w:'K',pool:['D','E','I','J','L']}},
+];
+
 const FRIEND_NAMES = ['Janice','Francisco','Matt','Rem','Tiffany KL','Mr.','대한민국 남바원','Robert','Anish','Emily','Vikram','David','Dan','Ha-Mi','光榮的人民主席 Chairman Lau'];
 const CONFIRMED_SCORES = {'A|Mexico|South Africa':['2','0'],'A|South Korea|Czechia':['2','1'],'B|Canada|Bosnia and Herzegovina':['1','1'],'B|Qatar|Switzerland':['1','1'],'C|Brazil|Morocco':['1','1'],'C|Scotland|Haiti':['1','0'],'D|Australia|Türkiye':['2','0'],'D|USA|Paraguay':['4','1'],'E|Ecuador|Ivory Coast':['0','1'],'E|Germany|Curaçao':['7','1'],'F|Netherlands|Japan':['2','2'],'F|Tunisia|Sweden':['1','5'],'G|Belgium|Egypt':['1','1'],'G|Iran|New Zealand':['2','2'],'H|Spain|Cape Verde':['0','0'],'H|Uruguay|Saudi Arabia':['1','1']};
 const POS_PTS=[25,15,10,5];
@@ -505,7 +547,7 @@ let selectedPred=FRIEND_NAMES[0];
 const scores=Object.assign({},CONFIRMED_SCORES);
 
 function switchTab(name){
-  const names=['leaderboard','today','groups','predictions','scores','schedule','advancing'];
+  const names=['leaderboard','today','groups','predictions','scores','schedule','advancing','knockout'];
   document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
@@ -568,7 +610,7 @@ function totalScore(name){
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
-function renderAll(){renderLeaderboard();renderToday();renderGroups();renderPredictions();renderScores();renderSchedule();renderAdvancing();}
+function renderAll(){renderLeaderboard();renderToday();renderGroups();renderPredictions();renderScores();renderSchedule();renderAdvancing();renderKnockout();}
 
 function renderSchedule(){
   const el=document.getElementById('schedule-content');el.innerHTML='';
@@ -921,6 +963,64 @@ function renderAdvancing(){
     const card=document.createElement('div');card.className=`advance-card${isAdv?' marked':''}`;
     card.innerHTML=`<span class="advance-team">${esc(team)}</span>${isAdv?'<span class="advance-btn active">✓ Advancing</span>':''}`;
     el.appendChild(card);
+  });
+}
+
+function renderKnockout(){
+  const el=document.getElementById('knockout-content');el.innerHTML='';
+  const top8=computeThirdAdvancing();
+
+  function resolveSlot(slot){
+    const st=g=>calcStandings(g);
+    if(slot.type==='ru-ru'){
+      return{t1:{label:'Runner-up Group '+slot.a,name:st(slot.a)[1]?.name||''},t2:{label:'Runner-up Group '+slot.b,name:st(slot.b)[1]?.name||''},pool:null};
+    }
+    if(slot.type==='w-ru'){
+      return{t1:{label:'Winner Group '+slot.w,name:st(slot.w)[0]?.name||''},t2:{label:'Runner-up Group '+slot.ru,name:st(slot.ru)[1]?.name||''},pool:null};
+    }
+    // w-3rd: find which pool groups' 3rd-place team is in top 8
+    const candidates=slot.pool.map(g=>({g,team:st(g)[2]?.name||''})).filter(c=>top8.includes(c.team));
+    const t2name=candidates.length===1?candidates[0].team:'';
+    const t2label=candidates.length===1?`3rd Group ${candidates[0].g} (from pool)`:`3rd from pool ${slot.pool.join('/')}`;
+    return{t1:{label:'Winner Group '+slot.w,name:st(slot.w)[0]?.name||''},t2:{label:t2label,name:t2name},pool:slot.pool,candidates};
+  }
+
+  function fmtTime(t){const[h,m]=t.split(':').map(Number);const ap=h>=12?'PM':'AM';return`${h%12||12}:${String(m).padStart(2,'0')} ${ap} PT`;}
+  function fmtDate(d){const[,mo,da]=d.split('-');const months=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];const dt=new Date(d+'T12:00:00');return`${days[dt.getDay()]}, ${months[+mo]} ${+da}`;}
+
+  // Group by date
+  const byDate={};
+  KNOCKOUT_R32.forEach(m=>{(byDate[m.date]=byDate[m.date]||[]).push(m);});
+
+  Object.keys(byDate).sort().forEach(date=>{
+    const hdr=document.createElement('div');hdr.className='ko-date-header';hdr.textContent=fmtDate(date);el.appendChild(hdr);
+    byDate[date].sort((a,b)=>a.time.localeCompare(b.time)).forEach(m=>{
+      const{t1,t2,pool,candidates}=resolveSlot(m.slot);
+      const poolNote=pool&&candidates.length!==1
+        ?`<div class="ko-pool-note">Pool: Groups ${pool.join(' / ')}${candidates.length>1?' · Projected: '+candidates.map(c=>`<span class="ko-candidate">${esc(c.team)}</span>`).join(' or '):'  · No top-8 team in pool yet'}</div>`
+        :pool&&candidates.length===1
+        ?`<div class="ko-pool-note">Pool: Groups ${pool.join(' / ')} · projected based on current standings</div>`
+        :'';
+      const card=document.createElement('div');card.className='ko-card';
+      card.innerHTML=`
+        <div class="ko-card-header">
+          <div class="ko-meta">Match ${m.num} · ${fmtTime(m.time)}</div>
+          <div class="ko-venue">${esc(m.venue)}, ${esc(m.city)}</div>
+        </div>
+        <div class="ko-matchup">
+          <div class="ko-team">
+            <div class="ko-slot-label">${esc(t1.label)}</div>
+            <div class="ko-team-name${t1.name?'':' tbd'}">${esc(t1.name)||'TBD'}</div>
+          </div>
+          <div class="ko-vs">vs</div>
+          <div class="ko-team right">
+            <div class="ko-slot-label">${esc(t2.label)}</div>
+            <div class="ko-team-name${t2.name?'':' tbd'}">${esc(t2.name)||'TBD'}</div>
+          </div>
+        </div>
+        ${poolNote}`;
+      el.appendChild(card);
+    });
   });
 }
 
