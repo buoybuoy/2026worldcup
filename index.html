@@ -300,6 +300,7 @@
       <div class="scoring-chip">3rd Advances <strong>+5</strong> pts each</div>
       <div class="scoring-chip">Perfect Group <strong>+10</strong> pts</div>
     </div>
+    <div id="last-updated-line" style="font-size:12px;color:var(--text-secondary);text-align:right;margin-bottom:6px;min-height:16px;"></div>
     <div class="leaderboard-card">
       <table class="leaderboard-table">
         <thead><tr><th style="width:40px;text-align:center">#</th><th>Name</th><th class="c">Groups</th><th class="c">3rd Adv.</th><th class="r">Total</th></tr></thead>
@@ -664,6 +665,7 @@ function findMatchKeyInfo(home,away){
   return null;
 }
 let liveData={};
+let lastUpdated=null;
 async function fetchLiveScores(){
   try{
     const now=new Date();
@@ -701,6 +703,7 @@ async function fetchLiveScores(){
       });
     }
     liveData=newLive;
+    lastUpdated=new Date();
     if(scoresChanged)renderAll();else renderToday();
   }catch(e){/* CORS/offline — static data still works */}
 }
@@ -817,6 +820,8 @@ function renderToday(){
 }
 
 function renderLeaderboard(){
+  const lu=document.getElementById('last-updated-line');
+  if(lu)lu.textContent=lastUpdated?'Last updated: '+lastUpdated.toLocaleTimeString('en-US',{timeZone:'America/Los_Angeles',hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true})+' PT':'';
   const ranked=[...FRIEND_NAMES].map(n=>({n,total:totalScore(n),groupPts:Object.keys(GROUPS).reduce((s,g)=>{const r=scoreGroup(n,g);return s+(r?r.pts:0);},0),tp:scoreThird(n)})).sort((a,b)=>b.total-a.total);
   let html='';
   ranked.forEach((f,i)=>{
