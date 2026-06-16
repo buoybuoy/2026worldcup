@@ -735,9 +735,10 @@ function renderLeaderboard(){
   const ranked=[...FRIEND_NAMES].map(n=>({n,total:totalScore(n),groupPts:Object.keys(GROUPS).reduce((s,g)=>{const r=scoreGroup(n,g);return s+(r?r.pts:0);},0),tp:scoreThird(n)})).sort((a,b)=>b.total-a.total);
   let html='';
   ranked.forEach((f,i)=>{
-    const rc=i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'';
-    const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
-    html+=`<tr class="${rc}"><td class="rank-cell">${medal||i+1}</td><td class="name-cell">${esc(f.n)}</td><td class="sub-cell">${f.groupPts} pts</td><td class="sub-cell">${f.tp.pending?'–':f.tp.pts+' pts'}</td><td class="pts-cell">${f.total}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td></tr>`;
+    const rank=ranked.findIndex(x=>x.total===f.total)+1;
+    const rc=rank===1?'rank-1':rank===2?'rank-2':rank===3?'rank-3':'';
+    const medal=rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':'';
+    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="name-cell">${esc(f.n)}</td><td class="sub-cell">${f.groupPts} pts</td><td class="sub-cell">${f.tp.pending?'–':f.tp.pts+' pts'}</td><td class="pts-cell">${f.total}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td></tr>`;
   });
   document.getElementById('leaderboard-body').innerHTML=html;
 }
