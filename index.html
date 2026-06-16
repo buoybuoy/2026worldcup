@@ -340,6 +340,7 @@
   </div>
 
   <div id="tab-today" class="tab-panel">
+    <div class="info-banner">Each name appears under the result that's best for their bracket. We project the rest of every group the way that person predicted, then score group finishes (25/15/10/5) <em>and</em> third-place advancement (+5 each). "/ draw ok" means a draw also works for them; a green chip means their good result is happening right now.</div>
     <div id="today-content"></div>
   </div>
 
@@ -701,37 +702,50 @@ function renderSchedule(){
 }
 
 function bestMatchResult(name,g,h,a){
-  const pred=FRIENDS_PREDS[name]&&FRIENDS_PREDS[name][g];
+  const allPreds=FRIENDS_PREDS[name];
+  const pred=allPreds&&allPreds[g];
   if(!pred)return null;
   const hPos=pred.indexOf(h),aPos=pred.indexOf(a);
   const key=g+'|'+h+'|'+a;
-  const predRank=t=>{const i=pred.indexOf(t);return i<0?99:i;};
-  function simPts(outcome){
-    // Real played results + this match's tested outcome; all other games
-    // assumed to follow THIS participant's predicted order (higher pick wins).
-    const tmp=Object.assign({},scores);
-    if(outcome==='home')tmp[key]=['1','0'];
-    else if(outcome==='draw')tmp[key]=['0','0'];
-    else tmp[key]=['0','1'];
-    MATCHES[g].forEach(([mh,ma])=>{
-      const k=g+'|'+mh+'|'+ma;
-      const sc=tmp[k];
-      if(sc&&sc[0]!==''&&sc[1]!=='')return; // real result or tested match
-      tmp[k]=predRank(mh)<predRank(ma)?['1','0']:['0','1'];
-    });
-    const teams=GROUPS[g].map(t=>({name:t,w:0,d:0,l:0,gf:0,ga:0,pts:0}));
-    MATCHES[g].forEach(([mh,ma])=>{
-      const sc=tmp[g+'|'+mh+'|'+ma];
+  const thirdPicks=THIRD_PICKS[name]||[];
+  const rankIn=(gg,t)=>{const p=allPreds[gg];const i=p?p.indexOf(t):-1;return i<0?99:i;};
+
+  // Final standings for one group given a (fully filled) score map
+  function projStandings(gg,tmp){
+    const teams=GROUPS[gg].map(t=>({name:t,gf:0,ga:0,pts:0}));
+    MATCHES[gg].forEach(([mh,ma])=>{
+      const sc=tmp[gg+'|'+mh+'|'+ma];
       if(!sc||sc[0]===''||sc[1]==='')return;
       const hg=+sc[0],ag=+sc[1];
       const ht=teams.find(t=>t.name===mh),at=teams.find(t=>t.name===ma);
       if(!ht||!at||isNaN(hg)||isNaN(ag))return;
       ht.gf+=hg;ht.ga+=ag;at.gf+=ag;at.ga+=hg;
-      if(hg>ag){ht.w++;ht.pts+=3;at.l++;}else if(hg<ag){at.w++;at.pts+=3;ht.l++;}else{ht.d++;at.d++;ht.pts++;at.pts++;}
+      if(hg>ag)ht.pts+=3;else if(hg<ag)at.pts+=3;else{ht.pts++;at.pts++;}
     });
-    // Standings tiebreak falls back to the participant's predicted order
-    const st=teams.sort((x,y)=>y.pts-x.pts||(y.gf-y.ga)-(x.gf-x.ga)||y.gf-x.gf||predRank(x.name)-predRank(y.name));
-    let pts=0;st.forEach((t,i)=>{if(pred[i]&&t.name===pred[i])pts+=POS_PTS[i];});
+    return teams.sort((x,y)=>y.pts-x.pts||(y.gf-y.ga)-(x.gf-x.ga)||y.gf-x.gf||rankIn(gg,x.name)-rankIn(gg,y.name));
+  }
+
+  function simPts(outcome){
+    // Real played results + this match's tested outcome; every other game in
+    // EVERY group assumed to follow this participant's predicted order.
+    const tmp=Object.assign({},scores);
+    tmp[key]=outcome==='home'?['1','0']:outcome==='draw'?['0','0']:['0','1'];
+    Object.keys(GROUPS).forEach(gg=>{
+      MATCHES[gg].forEach(([mh,ma])=>{
+        const k=gg+'|'+mh+'|'+ma;
+        const sc=tmp[k];
+        if(sc&&sc[0]!==''&&sc[1]!=='')return; // real result or tested match
+        tmp[k]=rankIn(gg,mh)<rankIn(gg,ma)?['1','0']:['0','1'];
+      });
+    });
+    // (1) Group-finish points for this match's group (25/15/10/5)
+    let pts=0;
+    projStandings(g,tmp).forEach((t,i)=>{if(pred[i]&&t.name===pred[i])pts+=POS_PTS[i];});
+    // (2) Third-place advancement: +5 per pick in the projected global top 8
+    const thirds=Object.keys(GROUPS).map(gg=>{const s=projStandings(gg,tmp)[2];return{name:s.name,pts:s.pts,gd:s.gf-s.ga,gf:s.gf};});
+    thirds.sort((x,y)=>y.pts-x.pts||y.gd-x.gd||y.gf-x.gf);
+    const top8=thirds.slice(0,8).map(t=>t.name);
+    thirdPicks.forEach(p=>{if(top8.includes(p))pts+=5;});
     return pts;
   }
   const hp=simPts('home'),dp=simPts('draw'),rp=simPts('away');
