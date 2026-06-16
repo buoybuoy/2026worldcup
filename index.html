@@ -543,9 +543,10 @@ function scoreGroup(name,g){
   if(gamesPlayed(g)===0)return null;
   let pts=0;const posOk=[false,false,false,false];
   st.forEach((t,i)=>{if(pred[i]&&t.name===pred[i]){posOk[i]=true;pts+=POS_PTS[i];}});
+  const allCorrect=posOk.every(v=>v);
   let perfect=false;
-  if(groupComplete(g)&&posOk.every(v=>v)){perfect=true;pts+=10;}
-  return{pts,posOk,perfect,st};
+  if(groupComplete(g)&&allCorrect){perfect=true;pts+=10;}
+  return{pts,posOk,perfect,allCorrect,st};
 }
 
 function scoreThird(name){
@@ -773,7 +774,8 @@ function renderPredictions(){
   Object.keys(GROUPS).forEach(g=>{
     const pred=FRIENDS_PREDS[name]&&FRIENDS_PREDS[name][g];if(!pred)return;
     const result=scoreGroup(name,g);const played=gamesPlayed(g);
-    groupsHtml+=`<div class="pred-group-block"><div class="pred-group-label"><span>Group ${g}</span><span class="pred-group-pts">${result?result.pts:0}pts${result&&result.perfect?' ⭐':''}</span></div>`;
+    const starLabel=result&&result.allCorrect&&played>0?' ⭐':'';
+    groupsHtml+=`<div class="pred-group-block"><div class="pred-group-label"><span>Group ${g}</span><span class="pred-group-pts">${result?result.pts:0}pts${starLabel}</span></div>`;
     [0,1,2,3].forEach(pos=>{
       const pt=pred[pos];if(!pt)return;
       let cls='';
@@ -781,7 +783,12 @@ function renderPredictions(){
       groupsHtml+=`<div class="pred-pos-row"><span class="pos-label">${['1st','2nd','3rd','4th'][pos]}</span><span class="chip ${cls}">${esc(pt)}</span>${cls==='correct'?`<span class="pts-earned">+${POS_PTS[pos]}</span>`:''}`;
       groupsHtml+='</div>';
     });
-    if(result&&result.perfect)groupsHtml+='<span class="perfect-badge">⭐ Perfect group +10</span>';
+    if(result&&result.perfect){
+      groupsHtml+='<div class="pred-pos-row"><span class="pos-label">⭐</span><span class="chip correct">Perfect</span><span class="pts-earned">+10</span></div>';
+      groupsHtml+='<span class="perfect-badge">⭐ Perfect group +10</span>';
+    } else if(result&&result.allCorrect&&played>0){
+      groupsHtml+='<span class="perfect-badge" style="opacity:0.6">⭐ On track for +10</span>';
+    }
     groupsHtml+='</div>';
   });
   groupsHtml+='</div>';
