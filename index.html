@@ -179,14 +179,11 @@
   .third-section-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-secondary); margin-bottom: 6px; }
   .chips-row { display: flex; flex-wrap: wrap; gap: 4px; }
 
-  /* PREDICTIONS SIDEBAR */
-  .pred-layout { display: flex; gap: 16px; align-items: start; }
-  .pred-sidebar { width: 160px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; position: sticky; top: 16px; max-height: calc(100vh - 80px); overflow-y: auto; }
-  .pred-sidebar-btn { display: block; width: 100%; text-align: left; padding: 10px 13px; font-size: 12.5px; font-weight: 500; font-family: 'Inter', sans-serif; border: none; border-bottom: 1px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background 0.12s, color 0.12s; }
-  .pred-sidebar-btn:last-child { border-bottom: none; }
-  .pred-sidebar-btn.active { background: var(--green-light); color: var(--green-dark); font-weight: 600; }
-  .pred-sidebar-btn:hover:not(.active) { background: var(--bg-secondary); color: var(--text); }
-  #predictions-content { flex: 1; min-width: 0; }
+  /* PREDICTIONS PICKER */
+  .pred-picker-row { margin-bottom: 1.25rem; display: flex; align-items: center; gap: 10px; }
+  .pred-picker-label { font-size: 13px; font-weight: 500; color: var(--text-secondary); white-space: nowrap; }
+  .pred-select { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; padding: 8px 36px 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-card); color: var(--text); cursor: pointer; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236B7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; min-width: 200px; max-width: 340px; transition: border-color 0.15s; }
+  .pred-select:focus { outline: none; border-color: var(--green); }
 
   /* SCORES */
   .score-group-section { margin-bottom: 1.75rem; }
@@ -246,11 +243,17 @@
   .today-score-box { text-align: center; padding-top: 2px; }
   .today-score { font-family: 'Teko', sans-serif; font-size: 36px; font-weight: 600; color: var(--green); line-height: 1; }
   .today-score-vs { font-family: 'Teko', sans-serif; font-size: 24px; color: var(--text-secondary); line-height: 1.4; }
+  .today-fans-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .today-fans-col-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); margin-bottom: 5px; }
+  .today-fans-col.center .today-fans-col-label { text-align: center; }
+  .today-fans-col.center .today-fans { justify-content: center; }
+  .today-fans-col.right .today-fans-col-label { text-align: right; }
   .today-fans { display: flex; flex-wrap: wrap; gap: 4px; }
   .today-fans.right { justify-content: flex-end; }
   .fan-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 500; padding: 2px 7px; border-radius: 4px; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary); white-space: nowrap; }
   .fan-chip.advancing { background: var(--green-light); color: var(--green-dark); border-color: #c3dda0; }
   .fan-chip .fan-pos { font-family: 'Teko', sans-serif; font-size: 12px; opacity: 0.75; }
+  .no-fans-label { font-size: 11px; color: var(--text-secondary); font-style: italic; }
 
   @media (max-width: 600px) {
     header h1 { font-size: 22px; }
@@ -258,10 +261,10 @@
     .pred-groups-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
     .today-scoreline { grid-template-columns: 1fr 60px 1fr; gap: 8px; }
     .today-score { font-size: 28px; }
-    .pred-layout { flex-direction: column; }
-    .pred-sidebar { width: 100%; position: static; display: flex; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; max-height: none; }
-    .pred-sidebar-btn { flex-shrink: 0; border-bottom: none; border-right: 1px solid var(--border); padding: 8px 12px; }
-    .pred-sidebar-btn:last-child { border-right: none; }
+    .today-fans-row { grid-template-columns: 1fr; }
+    .today-fans-col.center .today-fans-col-label, .today-fans-col.right .today-fans-col-label { text-align: left; }
+    .today-fans-col.center .today-fans, .today-fans-col.right .today-fans { justify-content: flex-start; }
+    .pred-select { max-width: 100%; }
   }
 </style>
 </head>
@@ -321,10 +324,11 @@
       <div class="scoring-chip">Perfect Group <strong>+10</strong> pts</div>
     </div>
     <div class="info-banner">🟢 Green = currently correct &nbsp;·&nbsp; 🔴 Red = currently wrong &nbsp;·&nbsp; Grey = not yet decided.<br>Perfect Group bonus (+10) only awarded once all 6 matches in a group are complete.</div>
-    <div class="pred-layout">
-      <nav class="pred-sidebar" id="pred-sidebar"></nav>
-      <div id="predictions-content"></div>
+    <div class="pred-picker-row">
+      <span class="pred-picker-label">Viewing:</span>
+      <select class="pred-select" id="pred-select" onchange="selectPred(this.value)"></select>
     </div>
+    <div id="predictions-content"></div>
   </div>
 
   <div id="tab-scores" class="tab-panel">
@@ -338,7 +342,7 @@
   </div>
 
   <div id="tab-advancing" class="tab-panel">
-    <div class="info-banner">The 8 third-place teams that advanced to the knockout round are shown below. Each friend earns <strong>+5 pts</strong> per correct pick.</div>
+    <div class="info-banner">Top 8 third-place teams ranked by pts → goal difference → goals scored. Updates live as group results come in. Each friend earns <strong>+5 pts</strong> per correct pick.</div>
     <div class="advance-count" id="advance-count">0 / 8 teams marked</div>
     <div class="advance-grid" id="advancing-content"></div>
   </div>
@@ -448,7 +452,7 @@ const FRIENDS_PREDS = {
 };
 
 const FRIEND_NAMES = ['Janice','Francisco','Matt','Rem','Tiffany KL','Mr.','대한민국 남바원','Robert','Anish','Emily','Vikram','David','Dan','Ha-Mi','光榮的人民主席 Chairman Lau'];
-const CONFIRMED_SCORES = {'A|Mexico|South Africa':['2','0'],'A|South Korea|Czechia':['2','1'],'B|Canada|Bosnia and Herzegovina':['1','1'],'B|Qatar|Switzerland':['1','1'],'C|Brazil|Morocco':['1','1'],'C|Scotland|Haiti':['1','0'],'D|USA|Paraguay':['4','1'],'D|Australia|Türkiye':['2','0'],'E|Germany|Curaçao':['7','1'],'E|Ecuador|Ivory Coast':['0','1'],'F|Netherlands|Japan':['2','2'],'F|Tunisia|Sweden':['1','5'],'G|Belgium|Egypt':['0','1'],'H|Spain|Cape Verde':['0','0']};
+const CONFIRMED_SCORES = {'A|Mexico|South Africa':['2','0'],'A|South Korea|Czechia':['2','1'],'B|Canada|Bosnia and Herzegovina':['1','1'],'B|Qatar|Switzerland':['1','1'],'C|Brazil|Morocco':['1','1'],'C|Scotland|Haiti':['1','0'],'D|USA|Paraguay':['4','1'],'D|Australia|Türkiye':['2','0'],'E|Germany|Curaçao':['7','1'],'E|Ecuador|Ivory Coast':['0','1'],'F|Netherlands|Japan':['2','2'],'F|Tunisia|Sweden':['1','5'],'G|Belgium|Egypt':['1','1'],'H|Spain|Cape Verde':['0','0'],'H|Uruguay|Saudi Arabia':['1','1']};
 const POS_PTS=[25,15,10,5];
 // Kickoff times in PT (24h), used to sort and display Today tab
 const MATCH_TIMES = {
@@ -494,11 +498,8 @@ const MATCH_TIMES = {
   'L|England|Croatia':'15:00','L|Panama|Ghana':'15:00',
 };
 
-const THIRD_ADVANCING=[];
-
 let selectedPred=FRIEND_NAMES[0];
 const scores=Object.assign({},CONFIRMED_SCORES);
-const thirdAdvancing=Object.fromEntries(THIRD_ADVANCING.map(t=>[t,true]));
 
 function switchTab(name){
   const names=['leaderboard','today','groups','predictions','scores','schedule','advancing'];
@@ -522,7 +523,18 @@ function calcStandings(g){
 }
 function gamesPlayed(g){return MATCHES[g].filter(([h,a])=>{const s=scores[g+'|'+h+'|'+a];return s&&s[0]!==''&&s[1]!=='';}).length;}
 function groupComplete(g){return MATCHES[g].every(([h,a])=>{const s=scores[g+'|'+h+'|'+a];return s&&s[0]!==''&&s[1]!=='';});}
-function actualAdvancing(){return Object.entries(thirdAdvancing).filter(([,v])=>v).map(([t])=>t);}
+function computeThirdAdvancing(){
+  const thirds=[];
+  Object.keys(GROUPS).forEach(g=>{
+    if(gamesPlayed(g)===0)return;
+    const st=calcStandings(g);
+    const t=st[2];
+    thirds.push({name:t.name,pts:t.pts,gd:t.gf-t.ga,gf:t.gf});
+  });
+  thirds.sort((a,b)=>b.pts-a.pts||b.gd-a.gd||b.gf-a.gf);
+  return thirds.slice(0,8).map(t=>t.name);
+}
+function actualAdvancing(){return computeThirdAdvancing();}
 
 function scoreGroup(name,g){
   const pred=FRIENDS_PREDS[name]&&FRIENDS_PREDS[name][g];
@@ -601,9 +613,38 @@ function renderSchedule(){
   });
 }
 
+function bestMatchResult(name,g,h,a){
+  const pred=FRIENDS_PREDS[name]&&FRIENDS_PREDS[name][g];
+  if(!pred)return null;
+  const hPos=pred.indexOf(h),aPos=pred.indexOf(a);
+  const key=g+'|'+h+'|'+a;
+  function simPts(outcome){
+    const tmp=Object.assign({},scores);
+    if(outcome==='home')tmp[key]=['1','0'];
+    else if(outcome==='draw')tmp[key]=['0','0'];
+    else tmp[key]=['0','1'];
+    const teams=GROUPS[g].map(t=>({name:t,w:0,d:0,l:0,gf:0,ga:0,pts:0}));
+    MATCHES[g].forEach(([mh,ma])=>{
+      const sc=tmp[g+'|'+mh+'|'+ma];
+      if(!sc||sc[0]===''||sc[1]==='')return;
+      const hg=+sc[0],ag=+sc[1];
+      const ht=teams.find(t=>t.name===mh),at=teams.find(t=>t.name===ma);
+      if(!ht||!at||isNaN(hg)||isNaN(ag))return;
+      ht.gf+=hg;ht.ga+=ag;at.gf+=ag;at.ga+=hg;
+      if(hg>ag){ht.w++;ht.pts+=3;at.l++;}else if(hg<ag){at.w++;at.pts+=3;ht.l++;}else{ht.d++;at.d++;ht.pts++;at.pts++;}
+    });
+    const st=teams.sort((x,y)=>y.pts-x.pts||(y.gf-y.ga)-(x.gf-x.ga)||y.gf-x.gf);
+    let pts=0;st.forEach((t,i)=>{if(pred[i]&&t.name===pred[i])pts+=POS_PTS[i];});
+    return pts;
+  }
+  const hp=simPts('home'),dp=simPts('draw'),rp=simPts('away');
+  const mx=Math.max(hp,dp,rp);
+  return{hp,dp,rp,mx,hPos,aPos};
+}
+
 function renderToday(){
   const el=document.getElementById('today-content');el.innerHTML='';
-  const today=new Date().toISOString().slice(0,10);
+  const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'});
   const todayMatches=[];
   Object.keys(MATCHES).forEach(g=>{
     MATCHES[g].forEach(([h,a])=>{
@@ -624,27 +665,39 @@ function renderToday(){
     const sc=scores[key];
     const hasScore=sc&&sc[0]!==''&&sc[1]!=='';
 
-    const hFans=[],aFans=[];
-    FRIEND_NAMES.forEach(name=>{
-      const pred=FRIENDS_PREDS[name]&&FRIENDS_PREDS[name][g];
-      if(!pred)return;
-      const hPos=pred.indexOf(h),aPos=pred.indexOf(a);
-      if(hPos===-1&&aPos===-1)return;
-      // Assign to whichever team they predicted higher (lower index = more points at stake)
-      if(hPos!==-1&&(aPos===-1||hPos<aPos)) hFans.push({name,pos:hPos});
-      else aFans.push({name,pos:aPos});
-    });
-    hFans.sort((a,b)=>a.pos-b.pos);
-    aFans.sort((a,b)=>a.pos-b.pos);
-
     const hWon=hasScore&&+sc[0]>+sc[1];
     const aWon=hasScore&&+sc[1]>+sc[0];
+    const isDraw=hasScore&&!hWon&&!aWon;
     const rawTime=MATCH_TIMES[key];
-    const timeLabel=rawTime?(()=>{const[h,m]=rawTime.split(':').map(Number);const ap=h>=12?'PM':'AM';const h12=h%12||12;return `${h12}:${m.toString().padStart(2,'0')} ${ap} PT`;})():'';
+    const timeLabel=rawTime?(()=>{const[hr,m]=rawTime.split(':').map(Number);const ampm=hr>=12?'PM':'AM';const h12=hr%12||12;return `${h12}:${m.toString().padStart(2,'0')} ${ampm} PT`;})():'';
 
-    const fanChipsHtml=(fans,won)=>fans.length===0
-      ?`<span style="font-size:11px;color:var(--text-secondary);font-style:italic">No picks</span>`
+    const hFans=[],drawFans=[],aFans=[];
+    FRIEND_NAMES.forEach(name=>{
+      const res=bestMatchResult(name,g,h,a);
+      if(!res)return;
+      const{hp,dp,rp,mx,hPos,aPos}=res;
+      // Draw column: draw is tied for best outcome
+      if(dp===mx){
+        drawFans.push({name,hPos,aPos,hp,dp,rp,mx});
+      } else if(hp>=rp){
+        hFans.push({name,pos:hPos});
+      } else {
+        aFans.push({name,pos:aPos});
+      }
+    });
+    hFans.sort((x,y)=>x.pos-y.pos);
+    drawFans.sort((x,y)=>x.hPos-y.hPos);
+    aFans.sort((x,y)=>x.pos-y.pos);
+
+    const winChips=(fans,won)=>fans.length===0
+      ?`<span class="no-fans-label">—</span>`
       :fans.map(f=>`<span class="fan-chip${won?' advancing':''}">${esc(f.name)} <span class="fan-pos">${posLabel[f.pos]}</span></span>`).join('');
+    const drawChipsHtml=drawFans.length===0
+      ?`<span class="no-fans-label">—</span>`
+      :drawFans.map(f=>{
+        const green=isDraw||(hWon&&f.hp===f.mx)||(aWon&&f.rp===f.mx);
+        return `<span class="fan-chip${green?' advancing':''}">${esc(f.name)} <span class="fan-pos">${posLabel[f.hPos]}/${posLabel[f.aPos]}</span></span>`;
+      }).join('');
 
     const scoreHtml=hasScore
       ?`<div class="today-score">${sc[0]}–${sc[1]}</div>`
@@ -656,14 +709,22 @@ function renderToday(){
         ${hasScore?'<span class="status-pill done">Final</span>':`<span class="status-pill">${timeLabel||'Upcoming'}</span>`}
       </div>
       <div class="today-scoreline">
-        <div class="today-team-side">
-          <div class="today-team-name">${esc(h)}</div>
-          <div class="today-fans">${fanChipsHtml(hFans,hWon)}</div>
-        </div>
+        <div class="today-team-side"><div class="today-team-name">${esc(h)}</div></div>
         <div class="today-score-box">${scoreHtml}</div>
-        <div class="today-team-side right">
-          <div class="today-team-name">${esc(a)}</div>
-          <div class="today-fans right">${fanChipsHtml(aFans,aWon)}</div>
+        <div class="today-team-side right"><div class="today-team-name">${esc(a)}</div></div>
+      </div>
+      <div class="today-fans-row">
+        <div class="today-fans-col">
+          <div class="today-fans-col-label">Needs win</div>
+          <div class="today-fans">${winChips(hFans,hWon)}</div>
+        </div>
+        <div class="today-fans-col center">
+          <div class="today-fans-col-label">Draw ok</div>
+          <div class="today-fans">${drawChipsHtml}</div>
+        </div>
+        <div class="today-fans-col right">
+          <div class="today-fans-col-label">Needs win</div>
+          <div class="today-fans right">${winChips(aFans,aWon)}</div>
         </div>
       </div>`;
     el.appendChild(card);
@@ -694,15 +755,13 @@ function renderGroups(){
   });
 }
 
-function selectPred(i){selectedPred=FRIEND_NAMES[i];renderPredictions();}
+function selectPred(name){selectedPred=name;renderPredictions();}
 
 function renderPredictions(){
-  // Sidebar
-  const sidebar=document.getElementById('pred-sidebar');
-  sidebar.innerHTML=[...FRIEND_NAMES].sort((a,b)=>a.localeCompare(b)).map(name=>{
-    const i=FRIEND_NAMES.indexOf(name);
-    return `<button class="pred-sidebar-btn${name===selectedPred?' active':''}" onclick="selectPred(${i})" title="${esc(name)}">${esc(name)}</button>`;
-  }).join('');
+  // Populate select (alphabetical)
+  const sel=document.getElementById('pred-select');
+  sel.innerHTML=[...FRIEND_NAMES].sort((a,b)=>a.localeCompare(b))
+    .map(n=>`<option value="${esc(n)}"${n===selectedPred?' selected':''}>${esc(n)}</option>`).join('');
 
   // Single participant card
   const el=document.getElementById('predictions-content');el.innerHTML='';
@@ -754,10 +813,14 @@ function renderScores(){
 function renderAdvancing(){
   const el=document.getElementById('advancing-content');el.innerHTML='';
   const adv=actualAdvancing();
-  document.getElementById('advance-count').textContent=`${adv.length} / 8 teams advancing`;
+  const allGroupsDone=Object.keys(GROUPS).every(g=>groupComplete(g));
+  const groupsWithData=Object.keys(GROUPS).filter(g=>gamesPlayed(g)>0).length;
+  document.getElementById('advance-count').textContent=allGroupsDone
+    ?`${adv.length} / 8 teams advancing`
+    :`Projected top 8 (${groupsWithData} of 12 groups have results)`;
   const allPicks=new Set();Object.values(THIRD_PICKS).forEach(p=>p.forEach(t=>allPicks.add(t)));
   [...allPicks].sort().forEach(team=>{
-    const isAdv=!!thirdAdvancing[team];
+    const isAdv=adv.includes(team);
     const card=document.createElement('div');card.className=`advance-card${isAdv?' marked':''}`;
     card.innerHTML=`<span class="advance-team">${esc(team)}</span>${isAdv?'<span class="advance-btn active">✓ Advancing</span>':''}`;
     el.appendChild(card);
