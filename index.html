@@ -855,7 +855,7 @@ function renderToday(){
     const drawChipsHtml=drawFans.length===0
       ?`<span class="no-fans-label">—</span>`
       :drawFans.map(f=>{
-        const green=isDraw||(hWon&&f.hp===f.mx)||(aWon&&f.rp===f.mx);
+        const green=isDraw;
         return `<span class="fan-chip${green?' advancing':''}">${esc(f.name)} <span class="fan-pos">${posLabel[f.hPos]}/${posLabel[f.aPos]}</span></span>`;
       }).join('');
 
