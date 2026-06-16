@@ -812,7 +812,13 @@ async function fetchLiveScores(){
     liveData=newLive;
     lastUpdated=new Date();
     if(scoresChanged)renderAll();else renderToday();
+    stampLastUpdated();
   }catch(e){/* CORS/offline — static data still works */}
+}
+
+function stampLastUpdated(){
+  const lu=document.getElementById('last-updated-line');
+  if(lu)lu.textContent=lastUpdated?'Last updated: '+lastUpdated.toLocaleTimeString('en-US',{timeZone:'America/Los_Angeles',hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true})+' PT':'';
 }
 
 function renderToday(){
@@ -930,8 +936,7 @@ function renderToday(){
 }
 
 function renderLeaderboard(){
-  const lu=document.getElementById('last-updated-line');
-  if(lu)lu.textContent=lastUpdated?'Last updated: '+lastUpdated.toLocaleTimeString('en-US',{timeZone:'America/Los_Angeles',hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true})+' PT':'';
+  stampLastUpdated();
   const ranked=[...FRIEND_NAMES].map(n=>({n,total:totalScore(n),groupPts:Object.keys(GROUPS).reduce((s,g)=>{const r=scoreGroup(n,g);return s+(r?r.pts:0);},0),tp:scoreThird(n)})).sort((a,b)=>b.total-a.total);
   let html='';
   ranked.forEach((f,i)=>{
