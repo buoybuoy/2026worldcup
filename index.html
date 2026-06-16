@@ -670,6 +670,7 @@ async function fetchLiveScores(){
     const d1=now.toISOString().slice(0,10).replace(/-/g,'');
     const d2=new Date(now.getTime()+86400000).toISOString().slice(0,10).replace(/-/g,'');
     const newLive={};
+    let scoresChanged=false;
     for(const d of[...new Set([d1,d2])]){
       const res=await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=${d}`);
       if(!res.ok)continue;
@@ -688,11 +689,19 @@ async function fetchLiveScores(){
           const as=Math.round(parseFloat(awayC.score||'0'));
           const score=info.swapped?[String(as),String(hs)]:[String(hs),String(as)];
           newLive[info.key]={state,score,clock:comp.status.type.shortDetail||''};
+          // Merge completed matches into scores so leaderboard/predictions update too
+          if(state==='post'||comp.status.type.completed){
+            const prev=scores[info.key];
+            if(!prev||prev[0]!==score[0]||prev[1]!==score[1]){
+              scores[info.key]=score;
+              scoresChanged=true;
+            }
+          }
         }catch(e){}
       });
     }
     liveData=newLive;
-    renderToday();
+    if(scoresChanged)renderAll();else renderToday();
   }catch(e){/* CORS/offline — static data still works */}
 }
 
