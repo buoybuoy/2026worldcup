@@ -2,9 +2,9 @@ name: Update World Cup Scores
 
 on:
   schedule:
-    # Run every 15 minutes, 9am–11pm PT (4pm–6am UTC)
-    - cron: '*/15 16-23 * * *'
-    - cron: '*/15 0-6 * * *'
+    # Run every 5 minutes, 9am–11pm PT (4pm–6am UTC)
+    - cron: '*/5 16-23 * * *'
+    - cron: '*/5 0-6 * * *'
   workflow_dispatch: # Allow manual trigger from GitHub UI
 
 jobs:
