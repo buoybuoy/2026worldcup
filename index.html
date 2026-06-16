@@ -268,22 +268,35 @@
     .today-fans-col.center .today-fans, .today-fans-col.right .today-fans { justify-content: flex-start; }
     .pred-select { max-width: 100%; }
   }
-  /* KNOCKOUT */
-  .ko-date-header { font-family: 'Teko', sans-serif; font-size: 18px; font-weight: 600; color: var(--text-secondary); margin: 20px 0 8px; }
-  .ko-date-header:first-child { margin-top: 0; }
-  .ko-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 12px; }
-  .ko-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 8px; }
-  .ko-meta { font-size: 12px; color: var(--text-secondary); }
-  .ko-venue { font-size: 12px; color: var(--text-secondary); text-align: right; }
-  .ko-matchup { display: flex; align-items: center; gap: 10px; }
-  .ko-team { flex: 1; }
-  .ko-team.right { text-align: right; }
-  .ko-slot-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
-  .ko-team-name { font-family: 'Teko', sans-serif; font-size: 20px; font-weight: 600; line-height: 1.1; }
-  .ko-team-name.tbd { color: var(--text-secondary); font-size: 15px; }
-  .ko-vs { font-family: 'Teko', sans-serif; font-size: 18px; color: var(--text-secondary); flex-shrink: 0; }
-  .ko-pool-note { font-size: 11px; color: var(--text-secondary); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
-  .ko-pool-note .ko-candidate { color: var(--text); font-weight: 600; }
+  /* KNOCKOUT BRACKET */
+  .kb-scroll { overflow-x: auto; padding-bottom: 16px; -webkit-overflow-scrolling: touch; }
+  .kb { display: flex; min-width: max-content; align-items: stretch; }
+  .kb-round { display: flex; flex-direction: column; min-width: 184px; padding-right: 28px; }
+  .kb-round:last-child { padding-right: 0; }
+  .kb-round-title { flex: 0 0 auto; text-align: center; font-family: 'Teko', sans-serif; font-size: 16px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-secondary); padding: 4px 0 10px; }
+  .kb-cell { flex: 1 1 0; position: relative; display: flex; align-items: center; padding: 5px 0; }
+  .kb-box { width: 100%; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; }
+  .kb-box.proj { border-color: var(--green); }
+  .kb-box-head { font-size: 9px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kb-team { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 2px 0; }
+  .kb-team + .kb-team { border-top: 1px solid var(--border); }
+  .kb-team-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kb-team-name.tbd { color: var(--text-secondary); font-weight: 500; font-size: 12px; }
+  .kb-seed { font-size: 11px; color: var(--text-secondary); flex-shrink: 0; font-family: 'Teko', sans-serif; }
+  .kb-box-foot { font-size: 9px; color: var(--text-secondary); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* connectors */
+  .kb-round:not(:last-child) .kb-cell::after { content:''; position:absolute; left:100%; top:50%; width:14px; height:2px; background:var(--border); }
+  .kb-round:not(:first-child) .kb-cell::before { content:''; position:absolute; right:100%; top:50%; width:14px; height:2px; background:var(--border); }
+  .kb-vert { position:absolute; left:100%; top:50%; transform:translateX(14px); width:2px; height:100%; background:var(--border); }
+  .kb-third { margin-top: 20px; }
+  .kb-third .kb-round-title { text-align: left; }
+  .kb-third .kb-box { max-width: 280px; }
+  @media (max-width: 600px) {
+    .kb-round { min-width: 148px; padding-right: 22px; }
+    .kb-vert { transform: translateX(11px); }
+    .kb-round:not(:last-child) .kb-cell::after { width: 11px; }
+    .kb-round:not(:first-child) .kb-cell::before { width: 11px; }
+  }
 </style>
 </head>
 <body>
@@ -368,7 +381,7 @@
   </div>
 
   <div id="tab-knockout" class="tab-panel">
-    <div class="info-banner">Projected Round of 32 matchups based on current standings. 3rd-place opponents show the projected team from the eligible pool — final slot assignment done by FIFA after group stage ends.</div>
+    <div class="info-banner">Full knockout bracket. Round-of-32 seeds (1A, 2B, 3rd) fill in live from current standings — green-bordered matches are fully projected. Later rounds show "Winner [match #]" until teams are known. Scroll sideways to see the whole bracket.</div>
     <div id="knockout-content"></div>
   </div>
 </div>
@@ -495,6 +508,34 @@ const KNOCKOUT_R32=[
   {num:86,date:'2026-07-03',time:'15:00',venue:'Hard Rock Stadium',city:'Miami Gardens, FL',slot:{type:'w-ru',w:'J',ru:'H'}},
   {num:87,date:'2026-07-03',time:'18:30',venue:'Arrowhead Stadium',city:'Kansas City, MO',slot:{type:'w-3rd',w:'K',pool:['D','E','I','J','L']}},
 ];
+
+// Later knockout rounds, in bracket (tree) order. f = feeder match numbers. Times in PT.
+const KNOCKOUT_LATER={
+  R16:[
+    {num:89,f:[74,77],date:'2026-07-04',time:'14:00',venue:'Lincoln Financial Field',city:'Philadelphia, PA'},
+    {num:90,f:[73,75],date:'2026-07-04',time:'10:00',venue:'NRG Stadium',city:'Houston, TX'},
+    {num:93,f:[83,84],date:'2026-07-06',time:'12:00',venue:'AT&T Stadium',city:'Arlington, TX'},
+    {num:94,f:[81,82],date:'2026-07-06',time:'17:00',venue:'Lumen Field',city:'Seattle, WA'},
+    {num:91,f:[76,78],date:'2026-07-05',time:'13:00',venue:'MetLife Stadium',city:'East Rutherford, NJ'},
+    {num:92,f:[79,80],date:'2026-07-05',time:'17:00',venue:'Estadio Azteca',city:'Mexico City'},
+    {num:95,f:[86,88],date:'2026-07-07',time:'09:00',venue:'Mercedes-Benz Stadium',city:'Atlanta, GA'},
+    {num:96,f:[85,87],date:'2026-07-07',time:'13:00',venue:'BC Place',city:'Vancouver, Canada'},
+  ],
+  QF:[
+    {num:97,f:[89,90],date:'2026-07-09',time:'13:00',venue:'Gillette Stadium',city:'Foxborough, MA'},
+    {num:98,f:[93,94],date:'2026-07-10',time:'12:00',venue:'SoFi Stadium',city:'Inglewood, CA'},
+    {num:99,f:[91,92],date:'2026-07-11',time:'14:00',venue:'Hard Rock Stadium',city:'Miami Gardens, FL'},
+    {num:100,f:[95,96],date:'2026-07-11',time:'18:00',venue:'Arrowhead Stadium',city:'Kansas City, MO'},
+  ],
+  SF:[
+    {num:101,f:[97,98],date:'2026-07-14',time:'12:00',venue:'AT&T Stadium',city:'Arlington, TX'},
+    {num:102,f:[99,100],date:'2026-07-15',time:'12:00',venue:'Mercedes-Benz Stadium',city:'Atlanta, GA'},
+  ],
+  F:[
+    {num:104,f:[101,102],date:'2026-07-19',time:'12:00',venue:'MetLife Stadium',city:'East Rutherford, NJ'},
+  ],
+  THIRD:{num:103,f:[101,102],date:'2026-07-18',time:'14:00',venue:'Hard Rock Stadium',city:'Miami Gardens, FL'},
+};
 
 const FRIEND_NAMES = ['Janice','Francisco','Matt','Rem','Tiffany KL','Mr.','대한민국 남바원','Robert','Anish','Emily','Vikram','David','Dan','Ha-Mi','光榮的人民主席 Chairman Lau'];
 const CONFIRMED_SCORES = {'A|Mexico|South Africa':['2','0'],'A|South Korea|Czechia':['2','1'],'B|Canada|Bosnia and Herzegovina':['1','1'],'B|Qatar|Switzerland':['1','1'],'C|Brazil|Morocco':['1','1'],'C|Scotland|Haiti':['1','0'],'D|Australia|Türkiye':['2','0'],'D|USA|Paraguay':['4','1'],'E|Ecuador|Ivory Coast':['0','1'],'E|Germany|Curaçao':['7','1'],'F|Netherlands|Japan':['2','2'],'F|Tunisia|Sweden':['1','5'],'G|Belgium|Egypt':['1','1'],'G|Iran|New Zealand':['2','2'],'H|Spain|Cape Verde':['0','0'],'H|Uruguay|Saudi Arabia':['1','1'],'I|France|Senegal':['3','1']};
@@ -969,59 +1010,77 @@ function renderAdvancing(){
 function renderKnockout(){
   const el=document.getElementById('knockout-content');el.innerHTML='';
   const top8=computeThirdAdvancing();
+  const st=g=>calcStandings(g);
 
-  function resolveSlot(slot){
-    const st=g=>calcStandings(g);
-    if(slot.type==='ru-ru'){
-      return{t1:{label:'Runner-up Group '+slot.a,name:st(slot.a)[1]?.name||''},t2:{label:'Runner-up Group '+slot.b,name:st(slot.b)[1]?.name||''},pool:null};
-    }
-    if(slot.type==='w-ru'){
-      return{t1:{label:'Winner Group '+slot.w,name:st(slot.w)[0]?.name||''},t2:{label:'Runner-up Group '+slot.ru,name:st(slot.ru)[1]?.name||''},pool:null};
-    }
-    // w-3rd: find which pool groups' 3rd-place team is in top 8
-    const candidates=slot.pool.map(g=>({g,team:st(g)[2]?.name||''})).filter(c=>top8.includes(c.team));
-    const t2name=candidates.length===1?candidates[0].team:'';
-    const t2label=candidates.length===1?`3rd Group ${candidates[0].g} (from pool)`:`3rd from pool ${slot.pool.join('/')}`;
-    return{t1:{label:'Winner Group '+slot.w,name:st(slot.w)[0]?.name||''},t2:{label:t2label,name:t2name},pool:slot.pool,candidates};
+  function shortDate(d){const dt=new Date(d+'T12:00:00');const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return m[dt.getMonth()]+' '+dt.getDate();}
+  function shortTime(t){const[h,mn]=t.split(':').map(Number);const ap=h>=12?'PM':'AM';const h12=h%12||12;return mn?`${h12}:${String(mn).padStart(2,'0')} ${ap}`:`${h12} ${ap}`;}
+
+  // R32 slot → [side1, side2]; each side {name, seed, poolTitle?}
+  function r32Sides(slot){
+    if(slot.type==='ru-ru')return[{name:st(slot.a)[1]&&st(slot.a)[1].name,seed:'2'+slot.a},{name:st(slot.b)[1]&&st(slot.b)[1].name,seed:'2'+slot.b}];
+    if(slot.type==='w-ru')return[{name:st(slot.w)[0]&&st(slot.w)[0].name,seed:'1'+slot.w},{name:st(slot.ru)[1]&&st(slot.ru)[1].name,seed:'2'+slot.ru}];
+    // w-3rd
+    const cands=slot.pool.map(g=>({g,team:st(g)[2]&&st(g)[2].name})).filter(c=>c.team&&top8.includes(c.team));
+    const t2=cands.length===1?cands[0].team:'';
+    const poolTitle='3rd from groups '+slot.pool.join('/')+(cands.length?' · projected: '+cands.map(c=>c.team).join(' or '):' · none in top 8 yet');
+    return[{name:st(slot.w)[0]&&st(slot.w)[0].name,seed:'1'+slot.w},{name:t2,seed:'3rd',poolTitle}];
   }
 
-  function fmtTime(t){const[h,m]=t.split(':').map(Number);const ap=h>=12?'PM':'AM';return`${h%12||12}:${String(m).padStart(2,'0')} ${ap} PT`;}
-  function fmtDate(d){const[,mo,da]=d.split('-');const months=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];const dt=new Date(d+'T12:00:00');return`${days[dt.getDay()]}, ${months[+mo]} ${+da}`;}
-
-  // Group by date
-  const byDate={};
-  KNOCKOUT_R32.forEach(m=>{(byDate[m.date]=byDate[m.date]||[]).push(m);});
-
-  Object.keys(byDate).sort().forEach(date=>{
-    const hdr=document.createElement('div');hdr.className='ko-date-header';hdr.textContent=fmtDate(date);el.appendChild(hdr);
-    byDate[date].sort((a,b)=>a.time.localeCompare(b.time)).forEach(m=>{
-      const{t1,t2,pool,candidates}=resolveSlot(m.slot);
-      const poolNote=pool&&candidates.length!==1
-        ?`<div class="ko-pool-note">Pool: Groups ${pool.join(' / ')}${candidates.length>1?' · Projected: '+candidates.map(c=>`<span class="ko-candidate">${esc(c.team)}</span>`).join(' or '):'  · No top-8 team in pool yet'}</div>`
-        :pool&&candidates.length===1
-        ?`<div class="ko-pool-note">Pool: Groups ${pool.join(' / ')} · projected based on current standings</div>`
-        :'';
-      const card=document.createElement('div');card.className='ko-card';
-      card.innerHTML=`
-        <div class="ko-card-header">
-          <div class="ko-meta">Match ${m.num} · ${fmtTime(m.time)}</div>
-          <div class="ko-venue">${esc(m.venue)}, ${esc(m.city)}</div>
-        </div>
-        <div class="ko-matchup">
-          <div class="ko-team">
-            <div class="ko-slot-label">${esc(t1.label)}</div>
-            <div class="ko-team-name${t1.name?'':' tbd'}">${esc(t1.name)||'TBD'}</div>
-          </div>
-          <div class="ko-vs">vs</div>
-          <div class="ko-team right">
-            <div class="ko-slot-label">${esc(t2.label)}</div>
-            <div class="ko-team-name${t2.name?'':' tbd'}">${esc(t2.name)||'TBD'}</div>
-          </div>
-        </div>
-        ${poolNote}`;
-      el.appendChild(card);
+  function teamRow(side){
+    const nm=side.name;
+    const main=nm?esc(nm):esc(side.seed||'TBD');
+    const sub=nm?esc(side.seed||''):'';
+    const titleAttr=side.poolTitle?` title="${esc(side.poolTitle)}"`:'';
+    return `<div class="kb-team"><span class="kb-team-name${nm?'':' tbd'}"${titleAttr}>${main}</span><span class="kb-seed">${sub}</span></div>`;
+  }
+  function feederRow(num){return `<div class="kb-team"><span class="kb-team-name tbd">Winner ${num}</span></div>`;}
+  function box(head,rowsHtml,city,proj,fullVenue){
+    return `<div class="kb-box${proj?' proj':''}">`
+      +`<div class="kb-box-head">${esc(head)}</div>${rowsHtml}`
+      +(city?`<div class="kb-box-foot" title="${esc(fullVenue||city)}">${esc(city)}</div>`:'')
+      +`</div>`;
+  }
+  function column(title,boxes,isLast){
+    let h=`<div class="kb-round"><div class="kb-round-title">${esc(title)}</div>`;
+    boxes.forEach((bx,i)=>{
+      const vert=(!isLast&&i%2===0)?'<span class="kb-vert"></span>':'';
+      h+=`<div class="kb-cell">${bx}${vert}</div>`;
     });
+    return h+'</div>';
+  }
+
+  // Round of 32 in bracket (tree) order
+  const r32order=[74,77,73,75,83,84,81,82,76,78,79,80,86,88,85,87];
+  const r32map={};KNOCKOUT_R32.forEach(m=>r32map[m.num]=m);
+  const r32boxes=r32order.map(num=>{
+    const m=r32map[num];
+    const sides=r32Sides(m.slot);
+    const proj=sides[0].name&&sides[1].name;
+    const head=`M${m.num} · ${shortDate(m.date)} · ${shortTime(m.time)}`;
+    return box(head,teamRow(sides[0])+teamRow(sides[1]),m.city,proj,m.venue+', '+m.city);
   });
+  function laterBoxes(arr){
+    return arr.map(m=>{
+      const head=`M${m.num} · ${shortDate(m.date)} · ${shortTime(m.time)}`;
+      return box(head,feederRow(m.f[0])+feederRow(m.f[1]),m.city,false,m.venue+', '+m.city);
+    });
+  }
+
+  let html='<div class="kb-scroll"><div class="kb">';
+  html+=column('Round of 32',r32boxes,false);
+  html+=column('Round of 16',laterBoxes(KNOCKOUT_LATER.R16),false);
+  html+=column('Quarterfinals',laterBoxes(KNOCKOUT_LATER.QF),false);
+  html+=column('Semifinals',laterBoxes(KNOCKOUT_LATER.SF),false);
+  html+=column('Final',laterBoxes(KNOCKOUT_LATER.F),true);
+  html+='</div></div>';
+
+  // Third-place play-off (standalone)
+  const tp=KNOCKOUT_LATER.THIRD;
+  const tpHead=`M${tp.num} · ${shortDate(tp.date)} · ${shortTime(tp.time)}`;
+  const tpRows=`<div class="kb-team"><span class="kb-team-name tbd">Loser ${tp.f[0]}</span></div><div class="kb-team"><span class="kb-team-name tbd">Loser ${tp.f[1]}</span></div>`;
+  html+=`<div class="kb-third"><div class="kb-round-title">🥉 Third-Place Play-off</div>${box(tpHead,tpRows,tp.city,false,tp.venue+', '+tp.city)}</div>`;
+
+  el.innerHTML=html;
 }
 
 renderAll();
