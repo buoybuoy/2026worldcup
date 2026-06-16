@@ -234,6 +234,8 @@
   .sched-score { font-family: 'Teko', sans-serif; font-size: 20px; font-weight: 600; color: var(--green); flex-shrink: 0; line-height: 1; }
 
   /* TODAY */
+  .today-section-title { font-family: 'Teko', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: 0.02em; margin: 20px 0 8px; color: var(--text-secondary); }
+  .today-section-title:first-child { margin-top: 0; }
   .today-match-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 14px; }
   .today-match-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
   .today-group-badge { font-family: 'Teko', sans-serif; font-size: 20px; font-weight: 600; }
@@ -643,6 +645,57 @@ function bestMatchResult(name,g,h,a){
   return{hp,dp,rp,mx,hPos,aPos};
 }
 
+// Live score polling (best-effort; falls back silently if blocked/offline)
+const NAME_MAP_ESPN={
+  'Czech Republic':'Czechia',"Côte d'Ivoire":'Ivory Coast',Turkey:'Türkiye',
+  'Bosnia-Herzegovina':'Bosnia and Herzegovina','Cabo Verde':'Cape Verde',
+  'United States':'USA','Korea Republic':'South Korea','Congo DR':'DR Congo',
+  'Democratic Republic of Congo':'DR Congo',Curacao:'Curaçao','IR Iran':'Iran',
+};
+const TEAM_TO_GROUP={};
+Object.keys(GROUPS).forEach(g=>GROUPS[g].forEach(t=>TEAM_TO_GROUP[t]=g));
+function findMatchKeyInfo(home,away){
+  const g=TEAM_TO_GROUP[home];
+  if(!g||!GROUPS[g].includes(away))return null;
+  for(const[h,a] of MATCHES[g]){
+    if(h===home&&a===away)return{key:g+'|'+h+'|'+a,swapped:false};
+    if(h===away&&a===home)return{key:g+'|'+h+'|'+a,swapped:true};
+  }
+  return null;
+}
+let liveData={};
+async function fetchLiveScores(){
+  try{
+    const now=new Date();
+    const d1=now.toISOString().slice(0,10).replace(/-/g,'');
+    const d2=new Date(now.getTime()+86400000).toISOString().slice(0,10).replace(/-/g,'');
+    const newLive={};
+    for(const d of[...new Set([d1,d2])]){
+      const res=await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=${d}`);
+      if(!res.ok)continue;
+      const data=await res.json();
+      (data.events||[]).forEach(ev=>{
+        try{
+          const comp=ev.competitions[0];
+          const homeC=comp.competitors.find(c=>c.homeAway==='home');
+          const awayC=comp.competitors.find(c=>c.homeAway==='away');
+          const home=NAME_MAP_ESPN[homeC.team.displayName]||homeC.team.displayName;
+          const away=NAME_MAP_ESPN[awayC.team.displayName]||awayC.team.displayName;
+          const info=findMatchKeyInfo(home,away);
+          if(!info)return;
+          const state=comp.status.type.state;
+          const hs=Math.round(parseFloat(homeC.score||'0'));
+          const as=Math.round(parseFloat(awayC.score||'0'));
+          const score=info.swapped?[String(as),String(hs)]:[String(hs),String(as)];
+          newLive[info.key]={state,score,clock:comp.status.type.shortDetail||''};
+        }catch(e){}
+      });
+    }
+    liveData=newLive;
+    renderToday();
+  }catch(e){/* CORS/offline — static data still works */}
+}
+
 function renderToday(){
   const el=document.getElementById('today-content');el.innerHTML='';
   const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'});
@@ -660,12 +713,24 @@ function renderToday(){
     return;
   }
 
+  const live=[],upcoming=[],final=[];
+  todayMatches.forEach(m=>{
+    const ld=liveData[m.key];
+    const confirmed=scores[m.key];
+    const hasConfirmed=confirmed&&confirmed[0]!==''&&confirmed[1]!=='';
+    if(ld&&ld.state==='in'){
+      live.push({...m,sc:ld.score,clock:ld.clock,status:'live'});
+    } else if(hasConfirmed||(ld&&ld.state==='post')){
+      final.push({...m,sc:hasConfirmed?confirmed:ld.score,status:'final'});
+    } else {
+      upcoming.push({...m,status:'upcoming'});
+    }
+  });
+
   const posLabel=['1st','2nd','3rd','4th'];
 
-  todayMatches.forEach(({g,h,a,key})=>{
-    const sc=scores[key];
-    const hasScore=sc&&sc[0]!==''&&sc[1]!=='';
-
+  function buildCard({g,h,a,key,sc,clock,status}){
+    const hasScore=status!=='upcoming';
     const hWon=hasScore&&+sc[0]>+sc[1];
     const aWon=hasScore&&+sc[1]>+sc[0];
     const isDraw=hasScore&&!hWon&&!aWon;
@@ -677,7 +742,6 @@ function renderToday(){
       const res=bestMatchResult(name,g,h,a);
       if(!res)return;
       const{hp,dp,rp,mx,hPos,aPos}=res;
-      // Draw column: draw is tied for best outcome
       if(dp===mx){
         drawFans.push({name,hPos,aPos,hp,dp,rp,mx});
       } else if(hp>=rp){
@@ -703,11 +767,15 @@ function renderToday(){
     const scoreHtml=hasScore
       ?`<div class="today-score">${sc[0]}–${sc[1]}</div>`
       :`<div class="today-score-vs">vs</div>`;
-    const card=document.createElement('div');card.className='today-match-card';
-    card.innerHTML=`
+    let statusPill;
+    if(status==='live')statusPill=`<span class="status-pill live">🔴 Live${clock?' · '+esc(clock):''}</span>`;
+    else if(status==='final')statusPill='<span class="status-pill done">Final</span>';
+    else statusPill=`<span class="status-pill">${timeLabel||'Upcoming'}</span>`;
+
+    return `<div class="today-match-card">
       <div class="today-match-header">
         <span class="today-group-badge">Group ${g}</span>
-        ${hasScore?'<span class="status-pill done">Final</span>':`<span class="status-pill">${timeLabel||'Upcoming'}</span>`}
+        ${statusPill}
       </div>
       <div class="today-scoreline">
         <div class="today-team-side"><div class="today-team-name">${esc(h)}</div></div>
@@ -727,9 +795,16 @@ function renderToday(){
           <div class="today-fans-col-label">${esc(a)} wins</div>
           <div class="today-fans right">${winChips(aFans,aWon)}</div>
         </div>
-      </div>`;
-    el.appendChild(card);
-  });
+      </div>
+    </div>`;
+  }
+
+  function section(title,matches){
+    if(matches.length===0)return'';
+    return `<div class="today-section-title">${title}</div>${matches.map(buildCard).join('')}`;
+  }
+
+  el.innerHTML=section('🔴 Live now',live)+section('⏰ Upcoming today',upcoming)+section('✅ Completed',final);
 }
 
 function renderLeaderboard(){
@@ -836,6 +911,8 @@ function renderAdvancing(){
 }
 
 renderAll();
+fetchLiveScores();
+setInterval(fetchLiveScores,60000);
 </script>
 </body>
 </html>
