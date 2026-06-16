@@ -716,7 +716,7 @@ function renderToday(){
       </div>
       <div class="today-fans-row">
         <div class="today-fans-col">
-          <div class="today-fans-col-label">Needs win</div>
+          <div class="today-fans-col-label">${esc(h)} wins</div>
           <div class="today-fans">${winChips(hFans,hWon)}</div>
         </div>
         <div class="today-fans-col center">
@@ -724,7 +724,7 @@ function renderToday(){
           <div class="today-fans">${drawChipsHtml}</div>
         </div>
         <div class="today-fans-col right">
-          <div class="today-fans-col-label">Needs win</div>
+          <div class="today-fans-col-label">${esc(a)} wins</div>
           <div class="today-fans right">${winChips(aFans,aWon)}</div>
         </div>
       </div>`;
