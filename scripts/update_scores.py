@@ -1,9 +1,19 @@
 #!/usr/bin/env python3
-"""Fetch completed 2026 World Cup scores from ESPN and update index.html."""
+"""Fetch 2026 World Cup scores AND kickoff times from ESPN, update index.html.
+
+- Scores: completed matches -> CONFIRMED_SCORES (full rewrite).
+- Kickoff times/dates: every scheduled match -> MATCH_TIMES / SCHEDULE,
+  updated in place per match key (preserves the hand-organized layout and
+  any future games ESPN hasn't published yet).
+All times are converted to Pacific Time, matching how the app displays them.
+"""
 
 import re
 import requests
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+PT = ZoneInfo('America/Los_Angeles')
 
 # ESPN display name → HTML name
 NAME_MAP = {
@@ -71,8 +81,9 @@ def find_match_key(home, away):
     return None, None
 
 
-def fetch_scores():
-    scores = {}
+def fetch_all():
+    """Return (scores, times, dates) keyed by match key. PT used for times/dates."""
+    scores, times, dates = {}, {}, {}
     start = date(2026, 6, 11)
     end = date(2026, 6, 27)
     current = start
@@ -92,60 +103,84 @@ def fetch_scores():
         for event in data.get('events', []):
             try:
                 comp = event['competitions'][0]
-                if not comp['status']['type'].get('completed'):
-                    continue
-
                 home_data = next(c for c in comp['competitors'] if c.get('homeAway') == 'home')
                 away_data = next(c for c in comp['competitors'] if c.get('homeAway') == 'away')
 
                 home = normalize(home_data['team']['displayName'])
                 away = normalize(away_data['team']['displayName'])
-                hs = str(int(float(home_data['score'])))
-                as_ = str(int(float(away_data['score'])))
 
                 key, swapped = find_match_key(home, away)
                 if key is None:
                     print(f'  No key for: {home} vs {away}')
                     continue
 
-                scores[key] = [as_, hs] if swapped else [hs, as_]
-                print(f'  {key}: {hs}-{as_}')
+                # Kickoff time/date in Pacific Time (every scheduled match)
+                iso = event.get('date')  # e.g. 2026-06-16T19:00Z
+                if iso:
+                    utc_dt = datetime.strptime(iso, '%Y-%m-%dT%H:%MZ').replace(tzinfo=timezone.utc)
+                    pt_dt = utc_dt.astimezone(PT)
+                    times[key] = pt_dt.strftime('%H:%M')
+                    dates[key] = pt_dt.strftime('%Y-%m-%d')
+
+                # Final score (completed only)
+                if comp['status']['type'].get('completed'):
+                    hs = str(int(float(home_data['score'])))
+                    as_ = str(int(float(away_data['score'])))
+                    scores[key] = [as_, hs] if swapped else [hs, as_]
+                    print(f'  {key}: {hs}-{as_}')
             except Exception as e:
                 print(f'  Event error: {e}')
 
         current += timedelta(days=1)
 
-    return scores
+    return scores, times, dates
 
 
-def update_html(filepath, scores):
+def update_html(filepath, scores, times, dates):
     with open(filepath, encoding='utf-8') as f:
         content = f.read()
+    original = content
 
+    # 1) CONFIRMED_SCORES — full rewrite
     scores_js = '{' + ','.join(
-        f"'{k}':['{v[0]}','{v[1]}']"
-        for k, v in sorted(scores.items())
+        f"'{k}':['{v[0]}','{v[1]}']" for k, v in sorted(scores.items())
     ) + '}'
-
-    updated = re.sub(
+    content = re.sub(
         r'const CONFIRMED_SCORES = \{[^}]*\};',
         f'const CONFIRMED_SCORES = {scores_js};',
         content,
     )
 
-    if updated == content:
+    # 2) MATCH_TIMES — update each key's HH:MM in place
+    time_changes = 0
+    for k, v in times.items():
+        pat = r"('" + re.escape(k) + r"':')(\d{1,2}:\d{2})(')"
+        new_content, n = re.subn(pat, lambda m, v=v: m.group(1) + v + m.group(3), content)
+        if n and new_content != content:
+            time_changes += 1
+        content = new_content
+
+    # 3) SCHEDULE — update each key's date in place
+    date_changes = 0
+    for k, v in dates.items():
+        pat = r"('" + re.escape(k) + r"':')(\d{4}-\d{2}-\d{2})(')"
+        new_content, n = re.subn(pat, lambda m, v=v: m.group(1) + v + m.group(3), content)
+        if n and new_content != content:
+            date_changes += 1
+        content = new_content
+
+    if content == original:
         print('No changes to index.html.')
         return False
 
     with open(filepath, 'w', encoding='utf-8') as f:
-        f.write(updated)
-
-    print(f'Updated index.html with {len(scores)} scores.')
+        f.write(content)
+    print(f'Updated index.html — {len(scores)} scores, {time_changes} kickoff times, {date_changes} dates changed.')
     return True
 
 
 if __name__ == '__main__':
-    print('Fetching scores...')
-    scores = fetch_scores()
-    print(f'Found {len(scores)} completed matches.')
-    update_html('index.html', scores)
+    print('Fetching scores and kickoff times...')
+    scores, times, dates = fetch_all()
+    print(f'Found {len(scores)} completed matches, {len(times)} scheduled kickoffs.')
+    update_html('index.html', scores, times, dates)

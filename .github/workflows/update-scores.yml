@@ -23,7 +23,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests tzdata
 
       - name: Fetch and update scores
         run: python scripts/update_scores.py
