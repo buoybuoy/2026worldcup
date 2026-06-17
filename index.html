@@ -267,12 +267,14 @@
 
   /* SCHEDULE */
   .schedule-day { margin-bottom: 1.75rem; }
-  details.schedule-day > summary { list-style: none; cursor: pointer; outline: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0 8px; border-bottom: 2px solid var(--green); margin-bottom: 8px; }
-  details.schedule-day > summary::-webkit-details-marker { display: none; }
+  details.schedule-completed { margin-bottom: 1.75rem; }
+  details.schedule-completed > summary { list-style: none; cursor: pointer; outline: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 14px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  details.schedule-completed > summary::-webkit-details-marker { display: none; }
+  details.schedule-completed[open] .sched-chevron { transform: rotate(180deg); }
+  .schedule-completed-body { padding-top: 16px; }
   .sched-day-title { font-family: 'Teko', sans-serif; font-size: 22px; font-weight: 600; color: var(--text); }
   .sched-day-status { font-size: 11px; color: var(--text-secondary); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
   .sched-chevron { font-size: 12px; transition: transform .15s ease; }
-  details.schedule-day[open] .sched-chevron { transform: rotate(180deg); }
   .schedule-date-header { font-family: 'Teko', sans-serif; font-size: 22px; font-weight: 600; padding: 6px 0 8px; border-bottom: 2px solid var(--green); margin-bottom: 8px; color: var(--text); }
   .schedule-match-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 5px; }
   .schedule-match-row.played { border-left: 3px solid var(--green); }
@@ -751,43 +753,51 @@ function renderSchedule(){
   allMatches.forEach(m=>{if(!byDate[m.date])byDate[m.date]=[];byDate[m.date].push(m);});
 
   const todayStr=new Date().toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'});
-  let html='';
+  const dayLabelFor=date=>new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+  const rowsFor=dayMatches=>dayMatches.map(({g,h,a,key,time})=>{
+    const sc=scores[key];
+    const hasScore=sc&&sc[0]!==''&&sc[1]!=='';
+    const [hr,mn]=time.split(':').map(Number);
+    const ap=hr>=12?'PM':'AM';
+    const h12=hr%12||12;
+    const timeStr=`${h12}:${mn.toString().padStart(2,'0')} ${ap}`;
+    const scoreDisplay=hasScore
+      ?`<span class="sched-score">${sc[0]}–${sc[1]}</span>`
+      :`<span class="sched-vs">vs</span>`;
+    return `<div class="schedule-match-row${hasScore?' played':''}">
+      <span class="sched-time">${timeStr}</span>
+      <span class="sched-group">${g}</span>
+      <div class="sched-teams">
+        <span class="sched-team">${esc(h)}</span>
+        ${scoreDisplay}
+        <span class="sched-team right">${esc(a)}</span>
+      </div>
+    </div>`;
+  }).join('');
+  const daySection=date=>`<div class="schedule-day"><div class="schedule-date-header">${dayLabelFor(date)}</div>${rowsFor(byDate[date])}</div>`;
+
+  // Split into completed days (past, or all matches final) and active (today/upcoming)
+  const completedDates=[],activeDates=[];
   Object.keys(byDate).sort().forEach(date=>{
-    const dateObj=new Date(date+'T12:00:00');
-    const dayLabel=dateObj.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
-    const dayMatches=byDate[date];
-    const played=dayMatches.filter(m=>{const sc=scores[m.key];return sc&&sc[0]!==''&&sc[1]!=='';}).length;
-    const total=dayMatches.length;
-    const allDone=played===total;
-    // Past days collapse by default; today and upcoming stay open. Manual toggles win.
-    const open=(date in scheduleToggled)?scheduleToggled[date]:date>=todayStr;
-    const status=allDone?`All ${total} final`:played>0?`${played}/${total} played`:`${total} matches`;
-    const rows=dayMatches.map(({g,h,a,key,time})=>{
-      const sc=scores[key];
-      const hasScore=sc&&sc[0]!==''&&sc[1]!=='';
-      const [hr,mn]=time.split(':').map(Number);
-      const ap=hr>=12?'PM':'AM';
-      const h12=hr%12||12;
-      const timeStr=`${h12}:${mn.toString().padStart(2,'0')} ${ap}`;
-      const scoreDisplay=hasScore
-        ?`<span class="sched-score">${sc[0]}–${sc[1]}</span>`
-        :`<span class="sched-vs">vs</span>`;
-      return `<div class="schedule-match-row${hasScore?' played':''}">
-        <span class="sched-time">${timeStr}</span>
-        <span class="sched-group">${g}</span>
-        <div class="sched-teams">
-          <span class="sched-team">${esc(h)}</span>
-          ${scoreDisplay}
-          <span class="sched-team right">${esc(a)}</span>
-        </div>
-      </div>`;
-    }).join('');
-    html+=`<details class="schedule-day" ${open?'open':''} ontoggle="toggleSchedDay('${date}',this.open)">`
-      +`<summary><span class="sched-day-title">${dayLabel}</span><span class="sched-day-status">${status}<span class="sched-chevron">▾</span></span></summary>`
-      +rows
-      +`</details>`;
+    const dm=byDate[date];
+    const allDone=dm.every(m=>{const sc=scores[m.key];return sc&&sc[0]!==''&&sc[1]!=='';});
+    (date<todayStr||allDone?completedDates:activeDates).push(date);
   });
-  el.innerHTML=html;
+
+  let html='';
+  // One collapsed "Completed" area holding every finished day (oldest first inside)
+  if(completedDates.length){
+    const totalMatches=completedDates.reduce((s,d)=>s+byDate[d].length,0);
+    const open=('__completed__' in scheduleToggled)?scheduleToggled['__completed__']:false;
+    html+=`<details class="schedule-completed" ${open?'open':''} ontoggle="toggleSchedDay('__completed__',this.open)">`
+      +`<summary><span class="sched-day-title">✓ Completed</span><span class="sched-day-status">${completedDates.length} day${completedDates.length>1?'s':''} · ${totalMatches} matches<span class="sched-chevron">▾</span></span></summary>`
+      +`<div class="schedule-completed-body">${completedDates.map(daySection).join('')}</div>`
+      +`</details>`;
+  }
+  // Today + upcoming, shown normally
+  activeDates.forEach(date=>{html+=daySection(date);});
+
+  el.innerHTML=html||'<div class="info-banner">No matches scheduled.</div>';
 }
 
 function bestMatchResult(name,g,h,a){
