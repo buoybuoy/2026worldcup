@@ -277,7 +277,10 @@
   .today-group-badge { font-family: 'Teko', sans-serif; font-size: 20px; font-weight: 600; }
   .today-scoreline { display: grid; grid-template-columns: 1fr 80px 1fr; align-items: start; gap: 16px; }
   .today-team-side.right { text-align: right; }
-  .today-team-name { font-size: 17px; font-weight: 600; margin-bottom: 10px; }
+  .today-team-name { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+  .today-scorers { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+  .today-team-side.right .today-scorers { align-items: flex-end; }
+  .today-scorer { font-size: 10px; color: var(--text-secondary); white-space: nowrap; line-height: 1.3; }
   .today-score-box { text-align: center; padding-top: 2px; }
   .today-score { font-family: 'Teko', sans-serif; font-size: 36px; font-weight: 600; color: var(--green); line-height: 1; }
   .today-score-vs { font-family: 'Teko', sans-serif; font-size: 24px; color: var(--text-secondary); line-height: 1.4; }
@@ -841,11 +844,13 @@ let lastUpdated=null;
 async function fetchLiveScores(){
   try{
     const now=new Date();
-    const d1=now.toISOString().slice(0,10).replace(/-/g,'');
-    const d2=new Date(now.getTime()+86400000).toISOString().slice(0,10).replace(/-/g,'');
+    // Query ESPN buckets around PT-today (±1 day) — ESPN groups by ET, so a
+    // PT-evening game can land in the next ET date. UTC dates miss those.
+    const fmtPT=dt=>dt.toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'}).replace(/-/g,'');
+    const dateSet=[...new Set([-1,0,1].map(off=>fmtPT(new Date(now.getTime()+off*86400000))))];
     const newLive={};
     let scoresChanged=false;
-    for(const d of[...new Set([d1,d2])]){
+    for(const d of dateSet){
       const res=await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=${d}`);
       if(!res.ok)continue;
       const data=await res.json();
@@ -862,7 +867,19 @@ async function fetchLiveScores(){
           const hs=Math.round(parseFloat(homeC.score||'0'));
           const as=Math.round(parseFloat(awayC.score||'0'));
           const score=info.swapped?[String(as),String(hs)]:[String(hs),String(as)];
-          newLive[info.key]={state,score,clock:comp.status.type.shortDetail||''};
+          // Goal scorers — own goals are credited to the opposing team
+          const homeScorers=[],awayScorers=[];
+          (comp.details||[]).forEach(dt=>{
+            if(!dt.scoringPlay)return;
+            const ath=(dt.athletesInvolved||[])[0];
+            const og=/own goal/i.test((dt.type&&dt.type.text)||'');
+            // ESPN's team.id on a scoring play is the credited (benefiting) team
+            const creditHome=String(dt.team&&dt.team.id)===String(homeC.id);
+            const entry={name:ath?ath.displayName:'',min:(dt.clock&&dt.clock.displayValue)||'',og,pen:/penalty/i.test((dt.type&&dt.type.text)||'')};
+            (creditHome?homeScorers:awayScorers).push(entry);
+          });
+          const scorers=info.swapped?{home:awayScorers,away:homeScorers}:{home:homeScorers,away:awayScorers};
+          newLive[info.key]={state,score,clock:comp.status.type.shortDetail||'',scorers};
           // Merge completed matches into scores so leaderboard/predictions update too
           if(state==='post'||comp.status.type.completed){
             const prev=scores[info.key];
@@ -965,15 +982,20 @@ function renderToday(){
     else if(status==='final')statusPill='<span class="status-pill done">Final</span>';
     else statusPill=`<span class="status-pill">${timeLabel||'Upcoming'}</span>`;
 
+    const ld=liveData[key];
+    const scorers=ld&&ld.scorers;
+    const scorerLine=list=>(!list||!list.length)?''
+      :`<div class="today-scorers">${list.map(s=>`<div class="today-scorer">⚽ ${esc(s.name)}${s.min?' '+esc(s.min):''}${s.pen?' (P)':''}${s.og?' (OG)':''}</div>`).join('')}</div>`;
+
     return `<div class="today-match-card">
       <div class="today-match-header">
         <span class="today-group-badge">Group ${g}</span>
         ${statusPill}
       </div>
       <div class="today-scoreline">
-        <div class="today-team-side"><div class="today-team-name">${esc(h)}</div></div>
+        <div class="today-team-side"><div class="today-team-name">${esc(h)}</div>${scorerLine(scorers&&scorers.home)}</div>
         <div class="today-score-box">${scoreHtml}</div>
-        <div class="today-team-side right"><div class="today-team-name">${esc(a)}</div></div>
+        <div class="today-team-side right"><div class="today-team-name">${esc(a)}</div>${scorerLine(scorers&&scorers.away)}</div>
       </div>
       <div class="today-fans-row">
         <div class="today-fans-col">
