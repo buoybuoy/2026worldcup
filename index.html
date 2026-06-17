@@ -252,6 +252,12 @@
 
   /* SCHEDULE */
   .schedule-day { margin-bottom: 1.75rem; }
+  details.schedule-day > summary { list-style: none; cursor: pointer; outline: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0 8px; border-bottom: 2px solid var(--green); margin-bottom: 8px; }
+  details.schedule-day > summary::-webkit-details-marker { display: none; }
+  .sched-day-title { font-family: 'Teko', sans-serif; font-size: 22px; font-weight: 600; color: var(--text); }
+  .sched-day-status { font-size: 11px; color: var(--text-secondary); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .sched-chevron { font-size: 12px; transition: transform .15s ease; }
+  details.schedule-day[open] .sched-chevron { transform: rotate(180deg); }
   .schedule-date-header { font-family: 'Teko', sans-serif; font-size: 22px; font-weight: 600; padding: 6px 0 8px; border-bottom: 2px solid var(--green); margin-bottom: 8px; color: var(--text); }
   .schedule-match-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 5px; }
   .schedule-match-row.played { border-left: 3px solid var(--green); }
@@ -700,6 +706,9 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
 
 function renderAll(){renderLeaderboard();renderToday();renderGroups();renderPredictions();renderSchedule();renderAdvancing();renderKnockout();}
 
+let scheduleToggled={};
+function toggleSchedDay(d,open){scheduleToggled[d]=open;}
+
 function renderSchedule(){
   const el=document.getElementById('schedule-content');el.innerHTML='';
 
@@ -718,10 +727,18 @@ function renderSchedule(){
   const byDate={};
   allMatches.forEach(m=>{if(!byDate[m.date])byDate[m.date]=[];byDate[m.date].push(m);});
 
+  let html='';
   Object.keys(byDate).sort().forEach(date=>{
     const dateObj=new Date(date+'T12:00:00');
     const dayLabel=dateObj.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
-    const rows=byDate[date].map(({g,h,a,key,time})=>{
+    const dayMatches=byDate[date];
+    const played=dayMatches.filter(m=>{const sc=scores[m.key];return sc&&sc[0]!==''&&sc[1]!=='';}).length;
+    const total=dayMatches.length;
+    const allDone=played===total;
+    // Completed days collapse by default; today/upcoming stay open. Manual toggles win.
+    const open=(date in scheduleToggled)?scheduleToggled[date]:!allDone;
+    const status=allDone?`All ${total} final`:played>0?`${played}/${total} played`:`${total} matches`;
+    const rows=dayMatches.map(({g,h,a,key,time})=>{
       const sc=scores[key];
       const hasScore=sc&&sc[0]!==''&&sc[1]!=='';
       const [hr,mn]=time.split(':').map(Number);
@@ -741,10 +758,12 @@ function renderSchedule(){
         </div>
       </div>`;
     }).join('');
-    const sec=document.createElement('div');sec.className='schedule-day';
-    sec.innerHTML=`<div class="schedule-date-header">${dayLabel}</div>${rows}`;
-    el.appendChild(sec);
+    html+=`<details class="schedule-day" ${open?'open':''} ontoggle="toggleSchedDay('${date}',this.open)">`
+      +`<summary><span class="sched-day-title">${dayLabel}</span><span class="sched-day-status">${status}<span class="sched-chevron">▾</span></span></summary>`
+      +rows
+      +`</details>`;
   });
+  el.innerHTML=html;
 }
 
 function bestMatchResult(name,g,h,a){
