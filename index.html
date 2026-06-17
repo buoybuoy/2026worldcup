@@ -223,6 +223,21 @@
   .advance-btn { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 500; border: 1px solid var(--border); cursor: pointer; font-family: 'Inter', sans-serif; background: var(--bg-secondary); color: var(--text-secondary); transition: all 0.15s; }
   .advance-btn.active { background: var(--green-light); color: var(--green-dark); border-color: #c3dda0; }
   .advance-count { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
+  .third-rank-title { font-family: 'Teko', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: .02em; margin: 4px 0 8px; }
+  .adv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .adv-table th { text-align: center; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-secondary); padding: 4px 6px; border-bottom: 1px solid var(--border); font-weight: 600; }
+  .adv-table th:nth-child(2) { text-align: left; }
+  .adv-table td { text-align: center; padding: 7px 6px; border-bottom: 1px solid var(--border); }
+  .adv-table td.tr-team { text-align: left; font-weight: 500; }
+  .adv-table td.tr-rank { color: var(--text-secondary); width: 24px; }
+  .adv-table td.tr-pts { font-weight: 700; }
+  .tr-grp { font-size: 10px; color: var(--text-secondary); background: var(--bg-secondary); padding: 1px 6px; border-radius: 4px; margin-left: 4px; white-space: nowrap; }
+  .adv-row.out { opacity: .5; }
+  .adv-row.cut td { border-top: 2px solid var(--green); }
+  .adv-row .tr-status { color: var(--text-secondary); }
+  .adv-row.in .tr-status { color: var(--green); font-weight: 700; }
+  .adv-cut-note { font-size: 11px; color: var(--text-secondary); margin: 8px 0 22px; line-height: 1.5; }
+  .third-picks-heading { font-family: 'Teko', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: .02em; margin: 4px 0 10px; }
 
   .info-banner {
     background: var(--bg-secondary);
@@ -431,8 +446,10 @@
   </div>
 
   <div id="tab-advancing" class="tab-panel">
-    <div class="info-banner">Top 8 third-place teams ranked by pts → goal difference → goals scored. Updates live as group results come in. Each friend earns <strong>+5 pts</strong> per correct pick.</div>
+    <div class="info-banner">The best 8 of the 12 third-place teams advance to the Round of 32, ranked by <strong>Points → Goal Difference → Goals Scored</strong>. Updates live as results come in. Each friend earns <strong>+5 pts</strong> per correct pick.</div>
     <div class="advance-count" id="advance-count">0 / 8 teams marked</div>
+    <div id="third-ranking"></div>
+    <div class="third-picks-heading">Teams your group picked to advance</div>
     <div class="advance-grid" id="advancing-content"></div>
   </div>
 
@@ -665,16 +682,19 @@ function calcStandings(g){
 }
 function gamesPlayed(g){return MATCHES[g].filter(([h,a])=>{const s=scores[g+'|'+h+'|'+a];return s&&s[0]!==''&&s[1]!=='';}).length;}
 function groupComplete(g){return MATCHES[g].every(([h,a])=>{const s=scores[g+'|'+h+'|'+a];return s&&s[0]!==''&&s[1]!=='';});}
-function computeThirdAdvancing(){
+function thirdPlaceRanking(){
   const thirds=[];
   Object.keys(GROUPS).forEach(g=>{
     if(gamesPlayed(g)===0)return;
     const st=calcStandings(g);
     const t=st[2];
-    thirds.push({name:t.name,pts:t.pts,gd:t.gf-t.ga,gf:t.gf});
+    thirds.push({g,name:t.name,w:t.w,d:t.d,l:t.l,gf:t.gf,ga:t.ga,gd:t.gf-t.ga,pts:t.pts,played:t.w+t.d+t.l});
   });
   thirds.sort((a,b)=>b.pts-a.pts||b.gd-a.gd||b.gf-a.gf);
-  return thirds.slice(0,8).map(t=>t.name);
+  return thirds;
+}
+function computeThirdAdvancing(){
+  return thirdPlaceRanking().slice(0,8).map(t=>t.name);
 }
 function actualAdvancing(){return computeThirdAdvancing();}
 
@@ -1107,13 +1127,39 @@ function renderPredictions(){
 }
 
 function renderAdvancing(){
-  const el=document.getElementById('advancing-content');el.innerHTML='';
-  const adv=actualAdvancing();
+  const ranking=thirdPlaceRanking();
+  const adv=ranking.slice(0,8).map(t=>t.name);
   const allGroupsDone=Object.keys(GROUPS).every(g=>groupComplete(g));
   const groupsWithData=Object.keys(GROUPS).filter(g=>gamesPlayed(g)>0).length;
   document.getElementById('advance-count').textContent=allGroupsDone
     ?`${adv.length} / 8 teams advancing`
     :`Projected top 8 (${groupsWithData} of 12 groups have results)`;
+
+  // Ranked 3rd-place race table — shows WHY each team is in or out
+  const rk=document.getElementById('third-ranking');
+  if(ranking.length===0){
+    rk.innerHTML='<div class="info-banner" style="margin-bottom:1.25rem">No group games played yet — projections appear once results come in.</div>';
+  } else {
+    const rows=ranking.map((t,i)=>{
+      const inTop8=i<8;
+      return `<tr class="adv-row ${inTop8?'in':'out'}${i===8?' cut':''}">`
+        +`<td class="tr-rank">${i+1}</td>`
+        +`<td class="tr-team">${esc(t.name)} <span class="tr-grp">Grp ${t.g}</span></td>`
+        +`<td>${t.played}</td>`
+        +`<td class="tr-pts">${t.pts}</td>`
+        +`<td>${t.gd>=0?'+':''}${t.gd}</td>`
+        +`<td>${t.gf}</td>`
+        +`<td class="tr-status">${inTop8?'✓':'—'}</td>`
+        +`</tr>`;
+    }).join('');
+    const notStarted=12-ranking.length;
+    rk.innerHTML=`<div class="third-rank-title">3rd-place race — ranked by Pts → GD → Goals</div>`
+      +`<table class="adv-table"><thead><tr><th>#</th><th>Team</th><th title="Played">Pl</th><th>Pts</th><th title="Goal difference">GD</th><th title="Goals for">GF</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+      +`<div class="adv-cut-note">Teams above the green line are the projected top 8 (advancing).${notStarted>0?` ${notStarted} group${notStarted>1?'s have':' has'} not started yet.`:''} Note: official FIFA tiebreakers also use fair-play points then FIFA ranking, which aren't tracked here.</div>`;
+  }
+
+  // Teams the group picked to advance
+  const el=document.getElementById('advancing-content');el.innerHTML='';
   const allPicks=new Set();Object.values(THIRD_PICKS).forEach(p=>p.forEach(t=>allPicks.add(t)));
   [...allPicks].sort().forEach(team=>{
     const isAdv=adv.includes(team);
