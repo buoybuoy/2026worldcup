@@ -657,7 +657,7 @@ const MATCH_TIMES = {
   'L|England|Croatia':'13:00','L|Panama|Ghana':'16:00',
 };
 
-let selectedPred=FRIEND_NAMES[0];
+let selectedPred=FRIEND_NAMES[Math.floor(Math.random()*FRIEND_NAMES.length)];
 const scores=Object.assign({},CONFIRMED_SCORES);
 
 function switchTab(name){
