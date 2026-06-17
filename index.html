@@ -159,6 +159,22 @@
   .team-row .stat { text-align: center; color: var(--text-secondary); font-size: 11px; }
   .team-row .tpts { text-align: center; font-weight: 600; font-size: 13px; }
   .qualify-bar { height: 2px; background: var(--green); margin: 4px 0; border-radius: 1px; opacity: 0.4; }
+  /* expandable group card (groups + scores combined) */
+  details.group-card > summary { list-style: none; cursor: pointer; outline: none; }
+  details.group-card > summary::-webkit-details-marker { display: none; }
+  .group-summary-right { display: flex; align-items: center; gap: 8px; }
+  .group-chevron { color: var(--text-secondary); font-size: 12px; transition: transform .15s ease; }
+  details.group-card[open] .group-chevron { transform: rotate(180deg); }
+  .group-expand-hint { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .05em; text-align: center; margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border); }
+  details.group-card[open] .group-expand-hint { display: none; }
+  .group-scores { margin-top: 4px; padding-top: 4px; }
+  .group-scores .score-group-label { margin: 6px 0 8px; }
+  .gs-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-sm); font-size: 12px; }
+  .gs-row.has-score { background: var(--bg-secondary); }
+  .gs-team { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+  .gs-team.right { text-align: right; }
+  .gs-score { flex-shrink: 0; min-width: 44px; text-align: center; font-family: 'Teko', sans-serif; font-size: 17px; font-weight: 600; }
+  .gs-score.vs { color: var(--text-secondary); font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; }
 
   /* PREDICTIONS */
   .friend-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem; margin-bottom: 12px; }
@@ -327,9 +343,8 @@
   <div class="tab-nav">
     <button class="tab-btn active" onclick="switchTab('leaderboard')">🏆 Leaderboard</button>
     <button class="tab-btn" onclick="switchTab('today')">📅 Today</button>
-    <button class="tab-btn" onclick="switchTab('groups')">📊 Groups</button>
+    <button class="tab-btn" onclick="switchTab('groups')">📊 Groups & Scores</button>
     <button class="tab-btn" onclick="switchTab('predictions')">🔮 Predictions</button>
-    <button class="tab-btn" onclick="switchTab('scores')">⚽ Scores</button>
     <button class="tab-btn" onclick="switchTab('schedule')">📆 Schedule</button>
     <button class="tab-btn" onclick="switchTab('advancing')">🎯 3rd Place</button>
     <button class="tab-btn" onclick="switchTab('knockout')">🏟️ Knockout</button>
@@ -379,6 +394,7 @@
   </div>
 
   <div id="tab-groups" class="tab-panel">
+    <div class="info-banner">Standings update live. Tap any group to expand its match results.</div>
     <div id="groups-content" class="group-grid"></div>
   </div>
 
@@ -399,10 +415,6 @@
     <div id="predictions-content"></div>
   </div>
 
-  <div id="tab-scores" class="tab-panel">
-    <div class="info-banner">Scores update automatically as games finish.</div>
-    <div id="scores-content"></div>
-  </div>
 
   <div id="tab-schedule" class="tab-panel">
     <div class="info-banner">All times are Pacific Time (PT). Completed matches shown with final score.</div>
@@ -623,7 +635,7 @@ let selectedPred=FRIEND_NAMES[0];
 const scores=Object.assign({},CONFIRMED_SCORES);
 
 function switchTab(name){
-  const names=['leaderboard','today','groups','predictions','scores','schedule','advancing','knockout'];
+  const names=['leaderboard','today','groups','predictions','schedule','advancing','knockout'];
   document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
@@ -686,7 +698,7 @@ function totalScore(name){
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
-function renderAll(){renderLeaderboard();renderToday();renderGroups();renderPredictions();renderScores();renderSchedule();renderAdvancing();renderKnockout();}
+function renderAll(){renderLeaderboard();renderToday();renderGroups();renderPredictions();renderSchedule();renderAdvancing();renderKnockout();}
 
 function renderSchedule(){
   const el=document.getElementById('schedule-content');el.innerHTML='';
@@ -982,17 +994,34 @@ function renderLeaderboard(){
   document.getElementById('leaderboard-body').innerHTML=html;
 }
 
+let openGroups=new Set();
+function toggleGroupOpen(g,open){if(open)openGroups.add(g);else openGroups.delete(g);}
+
 function renderGroups(){
   const el=document.getElementById('groups-content');
-  el.innerHTML='';
+  let html='';
   Object.keys(GROUPS).forEach(g=>{
     const teams=calcStandings(g),played=gamesPlayed(g),complete=groupComplete(g);
     const statusText=complete?'Complete':played>0?'In progress':'Not started';
     const statusCls=complete?'done':played>0?'live':'';
-    const card=document.createElement('div');card.className='group-card';
-    card.innerHTML=`<div class="group-header"><div class="group-name">Group ${g}</div><div class="status-pill ${statusCls}">${statusText}</div></div><div class="team-header-row"><span></span><span>Team</span><span>W</span><span>D</span><span>L</span><span>GD</span><span>Pts</span></div>${teams.map((t,i)=>(i===2?'<div class="qualify-bar"></div>':'')+`<div class="team-row"><span class="pos">${i+1}</span><span class="tname" title="${esc(t.name)}">${esc(t.name)}</span><span class="stat">${t.w}</span><span class="stat">${t.d}</span><span class="stat">${t.l}</span><span class="stat">${t.gf-t.ga>=0?'+':''}${t.gf-t.ga}</span><span class="tpts">${t.pts}</span></div>`).join('')}`;
-    el.appendChild(card);
+    const standings=`<div class="team-header-row"><span></span><span>Team</span><span>W</span><span>D</span><span>L</span><span>GD</span><span>Pts</span></div>`
+      +teams.map((t,i)=>(i===2?'<div class="qualify-bar"></div>':'')+`<div class="team-row"><span class="pos">${i+1}</span><span class="tname" title="${esc(t.name)}">${esc(t.name)}</span><span class="stat">${t.w}</span><span class="stat">${t.d}</span><span class="stat">${t.l}</span><span class="stat">${t.gf-t.ga>=0?'+':''}${t.gf-t.ga}</span><span class="tpts">${t.pts}</span></div>`).join('');
+    const scoresList=MATCHES[g].map(([h,a])=>{
+      const key=g+'|'+h+'|'+a,sc=scores[key];
+      const hs=sc&&sc[0]!==''&&sc[1]!=='';
+      const mid=hs?`<span class="gs-score">${esc(sc[0])}–${esc(sc[1])}</span>`:`<span class="gs-score vs">vs</span>`;
+      return `<div class="gs-row${hs?' has-score':''}"><span class="gs-team" title="${esc(h)}">${esc(h)}</span>${mid}<span class="gs-team right" title="${esc(a)}">${esc(a)}</span></div>`;
+    }).join('');
+    html+=`<details class="group-card" ${openGroups.has(g)?'open':''} ontoggle="toggleGroupOpen('${g}',this.open)">`
+      +`<summary>`
+        +`<div class="group-header"><div class="group-name">Group ${g}</div><div class="group-summary-right"><div class="status-pill ${statusCls}">${statusText}</div><span class="group-chevron">▾</span></div></div>`
+        +standings
+        +`<div class="group-expand-hint">Tap to show match scores ▾</div>`
+      +`</summary>`
+      +`<div class="group-scores"><div class="score-group-label">Match results</div>${scoresList}</div>`
+      +`</details>`;
   });
+  el.innerHTML=html;
 }
 
 function selectPred(name){selectedPred=name;renderPredictions();}
@@ -1034,26 +1063,6 @@ function renderPredictions(){
   const thirdChips=picks.map(p=>{let cls='';if(!tp.pending){cls=tp.correct.includes(p)?'correct':'wrong';}return `<span class="chip ${cls}">${esc(p)}</span>`;}).join('');
   card.innerHTML=`<div class="friend-card-header"><span class="friend-card-name">${esc(name)}</span><span class="friend-pts">${total} pts</span></div>${groupsHtml}<div class="third-section-title">3rd-place advance picks (${thirdStatus})</div><div class="chips-row">${thirdChips}</div>`;
   el.appendChild(card);
-}
-
-function renderScores(){
-  const el=document.getElementById('scores-content');el.innerHTML='';
-  Object.keys(GROUPS).forEach(g=>{
-    const sec=document.createElement('div');sec.className='score-group-section';
-    sec.innerHTML=`<div class="score-group-label">Group ${g}</div><div class="score-grid" id="sg-${g}"></div>`;
-    el.appendChild(sec);
-    const grid=sec.querySelector('.score-grid');
-    MATCHES[g].forEach(([h,a])=>{
-      const key=g+'|'+h+'|'+a,sc=scores[key];
-      const hs=sc&&sc[0]!==''&&sc[1]!=='';
-      const card=document.createElement('div');card.className=`match-card${hs?' has-score':''}`;
-      const scoreDisplay=hs
-        ?`<div class="score-box"><span class="score-val">${esc(sc[0])}</span><span class="score-sep">–</span><span class="score-val">${esc(sc[1])}</span></div>`
-        :`<div class="score-box"><span class="score-sep">vs</span></div>`;
-      card.innerHTML=`<div class="match-label">Group ${g}</div><div class="match-row"><span class="match-team" title="${esc(h)}">${esc(h)}</span>${scoreDisplay}<span class="match-team right" title="${esc(a)}">${esc(a)}</span></div>`;
-      grid.appendChild(card);
-    });
-  });
 }
 
 function renderAdvancing(){
