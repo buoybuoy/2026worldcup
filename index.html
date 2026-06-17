@@ -389,7 +389,8 @@
       <div class="scoring-chip">3rd Advances <strong>+5</strong> pts each</div>
       <div class="scoring-chip">Perfect Group <strong>+10</strong> pts</div>
     </div>
-    <div id="last-updated-line" style="font-size:12px;color:var(--text-secondary);text-align:right;margin-bottom:6px;min-height:16px;"></div>
+    <div id="last-updated-line" style="font-size:12px;color:var(--text-secondary);text-align:right;min-height:16px;"></div>
+    <div id="last-game-line" style="font-size:12px;color:var(--text-secondary);text-align:right;margin-bottom:6px;min-height:16px;"></div>
     <div class="leaderboard-card">
       <table class="leaderboard-table">
         <thead><tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change today">Move</th><th>Name</th><th class="c">Groups</th><th class="c">3rd Adv.</th><th class="r">Total</th></tr></thead>
@@ -936,9 +937,23 @@ async function fetchLiveScores(){
   }catch(e){/* CORS/offline — static data still works */}
 }
 
+function lastCompletedMatch(){
+  let best=null;
+  Object.keys(MATCHES).forEach(g=>{
+    MATCHES[g].forEach(([h,a])=>{
+      const key=g+'|'+h+'|'+a,sc=scores[key];
+      if(!sc||sc[0]===''||sc[1]==='')return;
+      const dt=(SCHEDULE[key]||'9999-99-99')+'T'+(MATCH_TIMES[key]||'00:00');
+      if(!best||dt>best.dt)best={dt,g,h,a,sc};
+    });
+  });
+  return best;
+}
 function stampLastUpdated(){
   const lu=document.getElementById('last-updated-line');
   if(lu)lu.textContent=lastUpdated?'Last updated: '+lastUpdated.toLocaleTimeString('en-US',{timeZone:'America/Los_Angeles',hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true})+' PT':'';
+  const lg=document.getElementById('last-game-line');
+  if(lg){const m=lastCompletedMatch();lg.textContent=m?`Last game: ${m.h} ${m.sc[0]}–${m.sc[1]} ${m.a}`:'';}
 }
 
 function renderToday(){
