@@ -169,6 +169,21 @@ def update_html(filepath, scores, times, dates):
             date_changes += 1
         content = new_content
 
+    # 4) SCORES_BASELINE — snapshot of games that finished before today (PT),
+    #    used for the leaderboard "Move" column. Deterministic: completed games
+    #    with a kickoff date strictly before today.
+    today_pt = datetime.now(timezone.utc).astimezone(PT).strftime('%Y-%m-%d')
+    baseline = {k: v for k, v in scores.items() if dates.get(k, '9999-99-99') < today_pt}
+    baseline_js = "{date:'%s',scores:{%s}}" % (
+        today_pt,
+        ','.join(f"'{k}':['{v[0]}','{v[1]}']" for k, v in sorted(baseline.items())),
+    )
+    content = re.sub(
+        r"const SCORES_BASELINE = \{date:'[^']*',scores:\{[^}]*\}\};",
+        f'const SCORES_BASELINE = {baseline_js};',
+        content,
+    )
+
     if content == original:
         print('No changes to index.html.')
         return False

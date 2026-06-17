@@ -134,6 +134,10 @@
   .leaderboard-table td { padding: 13px 14px; border-bottom: 1px solid var(--border); font-size: 14px; }
   .leaderboard-table tr:last-child td { border-bottom: none; }
   .leaderboard-table td.rank-cell { font-family: 'Teko', sans-serif; font-size: 20px; font-weight: 600; color: var(--text-secondary); width: 40px; text-align: center; }
+  .leaderboard-table td.move-cell { text-align: center; width: 44px; font-family: 'Teko', sans-serif; font-size: 15px; font-weight: 600; }
+  .move-up { color: var(--green); }
+  .move-down { color: #C0392B; }
+  .move-flat { color: var(--text-secondary); }
   .leaderboard-table td.name-cell { font-weight: 500; }
   .leaderboard-table td.pts-cell { font-family: 'Teko', sans-serif; font-size: 24px; font-weight: 600; color: var(--green); text-align: right; white-space: nowrap; }
   .leaderboard-table td.sub-cell { text-align: center; font-size: 12px; color: var(--text-secondary); }
@@ -388,7 +392,7 @@
     <div id="last-updated-line" style="font-size:12px;color:var(--text-secondary);text-align:right;margin-bottom:6px;min-height:16px;"></div>
     <div class="leaderboard-card">
       <table class="leaderboard-table">
-        <thead><tr><th style="width:40px;text-align:center">#</th><th>Name</th><th class="c">Groups</th><th class="c">3rd Adv.</th><th class="r">Total</th></tr></thead>
+        <thead><tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change today">Move</th><th>Name</th><th class="c">Groups</th><th class="c">3rd Adv.</th><th class="r">Total</th></tr></thead>
         <tbody id="leaderboard-body"></tbody>
       </table>
     </div>
@@ -661,6 +665,9 @@ const MATCH_TIMES = {
 
 let selectedPred=FRIEND_NAMES[Math.floor(Math.random()*FRIEND_NAMES.length)];
 const scores=Object.assign({},CONFIRMED_SCORES);
+// Snapshot of scores as of the start of today (end of yesterday), maintained
+// by the bot — used for the leaderboard "Move" column (rank change today).
+const SCORES_BASELINE = {date:'2026-06-17',scores:{'A|Mexico|South Africa':['2','0'],'A|South Korea|Czechia':['2','1'],'B|Canada|Bosnia and Herzegovina':['1','1'],'B|Qatar|Switzerland':['1','1'],'C|Brazil|Morocco':['1','1'],'C|Scotland|Haiti':['1','0'],'D|Australia|Türkiye':['2','0'],'D|USA|Paraguay':['4','1'],'E|Ecuador|Ivory Coast':['0','1'],'E|Germany|Curaçao':['7','1'],'F|Netherlands|Japan':['2','2'],'F|Tunisia|Sweden':['1','5'],'G|Belgium|Egypt':['1','1'],'G|Iran|New Zealand':['2','2'],'H|Spain|Cape Verde':['0','0'],'H|Uruguay|Saudi Arabia':['1','1'],'I|France|Senegal':['3','1'],'I|Iraq|Norway':['1','4'],'J|Argentina|Algeria':['3','0'],'J|Austria|Jordan':['3','1']}};
 
 function switchTab(name){
   const names=['leaderboard','today','groups','predictions','schedule','advancing','knockout'];
@@ -1053,15 +1060,35 @@ function renderToday(){
   el.innerHTML=section('🔴 Live now',live)+section('⏰ Upcoming today',upcoming)+section('✅ Completed',final);
 }
 
+// Run fn() with `scores` temporarily replaced by `map`, then restore. Lets us
+// reuse the exact scoring logic against the baseline snapshot.
+function withScores(map,fn){
+  const backup=Object.assign({},scores);
+  Object.keys(scores).forEach(k=>delete scores[k]);
+  Object.assign(scores,map);
+  try{return fn();}finally{Object.keys(scores).forEach(k=>delete scores[k]);Object.assign(scores,backup);}
+}
+function rankMap(){
+  const tot={};FRIEND_NAMES.forEach(n=>tot[n]=totalScore(n));
+  const rk={};FRIEND_NAMES.forEach(n=>rk[n]=FRIEND_NAMES.filter(m=>tot[m]>tot[n]).length+1);
+  return rk;
+}
 function renderLeaderboard(){
   stampLastUpdated();
+  const baseRanks=(SCORES_BASELINE&&SCORES_BASELINE.scores)?withScores(SCORES_BASELINE.scores,rankMap):null;
   const ranked=[...FRIEND_NAMES].map(n=>({n,total:totalScore(n),groupPts:Object.keys(GROUPS).reduce((s,g)=>{const r=scoreGroup(n,g);return s+(r?r.pts:0);},0),tp:scoreThird(n)})).sort((a,b)=>b.total-a.total);
   let html='';
   ranked.forEach((f,i)=>{
     const rank=ranked.findIndex(x=>x.total===f.total)+1;
     const rc=rank===1?'rank-1':rank===2?'rank-2':rank===3?'rank-3':'';
     const medal=rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':'';
-    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="name-cell">${esc(f.n)}</td><td class="sub-cell">${f.groupPts} pts</td><td class="sub-cell">${f.tp.pending?'–':f.tp.pts+' pts'}</td><td class="pts-cell">${f.total}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td></tr>`;
+    let move='<span class="move-flat">–</span>';
+    if(baseRanks){
+      const d=baseRanks[f.n]-rank; // positive = climbed
+      if(d>0)move=`<span class="move-up">▲${d}</span>`;
+      else if(d<0)move=`<span class="move-down">▼${-d}</span>`;
+    }
+    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="move-cell">${move}</td><td class="name-cell">${esc(f.n)}</td><td class="sub-cell">${f.groupPts} pts</td><td class="sub-cell">${f.tp.pending?'–':f.tp.pts+' pts'}</td><td class="pts-cell">${f.total}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td></tr>`;
   });
   document.getElementById('leaderboard-body').innerHTML=html;
 }
