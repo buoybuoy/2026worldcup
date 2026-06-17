@@ -750,6 +750,7 @@ function renderSchedule(){
   const byDate={};
   allMatches.forEach(m=>{if(!byDate[m.date])byDate[m.date]=[];byDate[m.date].push(m);});
 
+  const todayStr=new Date().toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'});
   let html='';
   Object.keys(byDate).sort().forEach(date=>{
     const dateObj=new Date(date+'T12:00:00');
@@ -758,8 +759,8 @@ function renderSchedule(){
     const played=dayMatches.filter(m=>{const sc=scores[m.key];return sc&&sc[0]!==''&&sc[1]!=='';}).length;
     const total=dayMatches.length;
     const allDone=played===total;
-    // Completed days collapse by default; today/upcoming stay open. Manual toggles win.
-    const open=(date in scheduleToggled)?scheduleToggled[date]:!allDone;
+    // Past days collapse by default; today and upcoming stay open. Manual toggles win.
+    const open=(date in scheduleToggled)?scheduleToggled[date]:date>=todayStr;
     const status=allDone?`All ${total} final`:played>0?`${played}/${total} played`:`${total} matches`;
     const rows=dayMatches.map(({g,h,a,key,time})=>{
       const sc=scores[key];
