@@ -393,7 +393,7 @@
     <div id="last-game-line" style="font-size:12px;color:var(--text-secondary);text-align:right;margin-bottom:6px;min-height:16px;"></div>
     <div class="leaderboard-card">
       <table class="leaderboard-table">
-        <thead><tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change today">Move</th><th>Name</th><th class="c">Groups</th><th class="c">3rd Adv.</th><th class="r">Total</th></tr></thead>
+        <thead><tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change from the last completed game">Move</th><th>Name</th><th class="c">Groups</th><th class="c">3rd Adv.</th><th class="r">Total</th></tr></thead>
         <tbody id="leaderboard-body"></tbody>
       </table>
     </div>
@@ -666,9 +666,6 @@ const MATCH_TIMES = {
 
 let selectedPred=FRIEND_NAMES[Math.floor(Math.random()*FRIEND_NAMES.length)];
 const scores=Object.assign({},CONFIRMED_SCORES);
-// Snapshot of scores as of the start of today (end of yesterday), maintained
-// by the bot — used for the leaderboard "Move" column (rank change today).
-const SCORES_BASELINE = {date:'2026-06-17',scores:{'A|Mexico|South Africa':['2','0'],'A|South Korea|Czechia':['2','1'],'B|Canada|Bosnia and Herzegovina':['1','1'],'B|Qatar|Switzerland':['1','1'],'C|Brazil|Morocco':['1','1'],'C|Scotland|Haiti':['1','0'],'D|Australia|Türkiye':['2','0'],'D|USA|Paraguay':['4','1'],'E|Ecuador|Ivory Coast':['0','1'],'E|Germany|Curaçao':['7','1'],'F|Netherlands|Japan':['2','2'],'F|Tunisia|Sweden':['1','5'],'G|Belgium|Egypt':['1','1'],'G|Iran|New Zealand':['2','2'],'H|Spain|Cape Verde':['0','0'],'H|Uruguay|Saudi Arabia':['1','1'],'I|France|Senegal':['3','1'],'I|Iraq|Norway':['1','4'],'J|Argentina|Algeria':['3','0'],'J|Austria|Jordan':['3','1']}};
 
 function switchTab(name){
   const names=['leaderboard','today','groups','predictions','schedule','advancing','knockout'];
@@ -1090,7 +1087,15 @@ function rankMap(){
 }
 function renderLeaderboard(){
   stampLastUpdated();
-  const baseRanks=(SCORES_BASELINE&&SCORES_BASELINE.scores)?withScores(SCORES_BASELINE.scores,rankMap):null;
+  // Move = rank change caused by the most recently completed game: compare
+  // current ranks to ranks with that one game removed (re-bases each game).
+  const lg=lastCompletedMatch();
+  let baseRanks=null;
+  if(lg){
+    const baseScores=Object.assign({},scores);
+    delete baseScores[lg.g+'|'+lg.h+'|'+lg.a];
+    baseRanks=withScores(baseScores,rankMap);
+  }
   const ranked=[...FRIEND_NAMES].map(n=>({n,total:totalScore(n),groupPts:Object.keys(GROUPS).reduce((s,g)=>{const r=scoreGroup(n,g);return s+(r?r.pts:0);},0),tp:scoreThird(n)})).sort((a,b)=>b.total-a.total);
   let html='';
   ranked.forEach((f,i)=>{
