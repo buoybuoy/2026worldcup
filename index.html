@@ -1342,12 +1342,35 @@ function teamStatus(team){
   return{label:`Eliminated · ${ord} in Group ${g}`,cls:'elim'};
 }
 
+// Committed SCORERS + live goals from any match that finished since the last
+// bot commit (matches not yet in CONFIRMED_SCORES). Own goals excluded.
+function goldenBootTally(){
+  const key=(p,t)=>p+'||'+t;
+  const map=new Map();
+  SCORERS.forEach(s=>map.set(key(s.p,s.t),{p:s.p,t:s.t,g:s.g}));
+  Object.keys(liveData).forEach(k=>{
+    if(CONFIRMED_SCORES[k])return;            // already in committed SCORERS
+    const ld=liveData[k];
+    if(!ld||ld.state!=='post'||!ld.scorers)return;
+    const parts=k.split('|'),h=parts[1],a=parts[2];
+    const add=(list,team)=>(list||[]).forEach(s=>{
+      if(s.og)return;
+      const kk=key(s.name,team),cur=map.get(kk);
+      if(cur)cur.g++;else map.set(kk,{p:s.name,t:team,g:1});
+    });
+    add(ld.scorers.home,h);
+    add(ld.scorers.away,a);
+  });
+  return [...map.values()].sort((x,y)=>y.g-x.g||x.p.localeCompare(y.p));
+}
+
 function renderGoldenBoot(){
   const el=document.getElementById('goldenboot-content');if(!el)return;
-  if(!SCORERS||!SCORERS.length){el.innerHTML='<div class="info-banner">No goals yet.</div>';return;}
+  const list=goldenBootTally();
+  if(!list.length){el.innerHTML='<div class="info-banner">No goals yet.</div>';return;}
   // dense rank (players on the same goal count share a rank)
   let rows='',lastG=null,rank=0,shown=0;
-  SCORERS.forEach(s=>{
+  list.forEach(s=>{
     if(s.g!==lastG){rank=shown+1;lastG=s.g;}
     shown++;
     const stt=teamStatus(s.t);
