@@ -216,8 +216,76 @@ def main():
                 who = [short(n) for n in NAMES if FP[n][g][0] == team]
                 print(f'       {team}: {", ".join(who)}')
 
+    # ---- auto Discord draft ----------------------------------------------
+    def md(dstr):
+        _, m, d = dstr.split('-')
+        return f'{int(m)}/{int(d)}'
+
+    medals = {1: '🥇', 2: '🥈', 3: '🥉'}
+    top = sorted([n for n in NAMES if r_end[n] <= 3], key=lambda n: (r_end[n], -tot_end[n], short(n)))
+    top_lines = [f'{medals.get(r_end[n], "")} **{r_end[n]}. {short(n)} — {tot_end[n]}**' for n in top]
+    leaders = [n for n in NAMES if r_end[n] == 1]
+    others = [tot_end[n] for n in NAMES if r_end[n] > 1]
+    if len(leaders) == 1 and others:
+        gap = tot_end[leaders[0]] - max(others)
+        if gap > 0:
+            top_lines[0] += f' 👑 (+{gap} clear!)'
+
+    moves = {n: r_start[n] - r_end[n] for n in NAMES}
+    climb = max(moves.items(), key=lambda kv: kv[1])
+    fall = min(moves.items(), key=lambda kv: kv[1])
+    mover = []
+    if climb[1] > 0:
+        mover.append(f'📈 **{short(climb[0])}** climbed {climb[1]} spot{"s" if climb[1] > 1 else ""} today.')
+    if fall[1] < 0:
+        mover.append(f'📉 **{short(fall[0])}** slid {-fall[1]}.')
+
+    todays = sorted({k.split('|')[0] for k, d in SCH.items() if d == recap_date})
+    drama = []
+    for g in todays:
+        if played(g, end) == 0:
+            continue
+        o, _ = standings(g, end)
+        called = sum(1 for n in NAMES if FP[n][g][0] == o[0])
+        if called <= 3:
+            drama.append(f'**{o[0]}** atop Group {g} (only {called}/15 called it)')
+
+    nxt_groups = sorted({k.split('|')[0] for k, d in SCH.items() if d == nxt}) if nxt else []
+    tmrw_lines = []
+    for g in nxt_groups:
+        tally = Counter(FP[n][g][0] for n in NAMES)
+        team, c = tally.most_common(1)[0]
+        seg = f'**Group {g}:** {c}/15 on {team}'
+        for t, cc in tally.items():
+            if cc == 1:
+                who = next(short(n) for n in NAMES if FP[n][g][0] == t)
+                seg += f' · 🐺 {who} alone on {t}'
+        tmrw_lines.append('- ' + seg)
+
+    LINK = 'https://buoybuoy.github.io/2026worldcup/'
+    out = []
+    out.append(f'## 🏆 World Cup Pick\'em — {md(recap_date)} Recap')
+    out.append('')
+    out.append('**🥇 Top 3**')
+    out.extend(top_lines)
+    if mover:
+        out.append('')
+        out.append(' '.join(mover))
+    if drama:
+        out.append('')
+        out.append('**Biggest shocks:** ' + '; '.join(drama) + '.')
+    if tmrw_lines:
+        out.append('')
+        out.append(f'**🔮 Next up ({md(nxt)}):**')
+        out.extend(tmrw_lines)
+    out.append('')
+    out.append(f'📲 Live standings & updates: {LINK}')
+
     print('\n' + '=' * 56)
-    print('Paste the block above to your assistant for a punched-up,\nDiscord-ready recap — or use it as-is.')
+    print('DISCORD DRAFT (copy everything below):\n')
+    print('\n'.join(out))
+    print('\n' + '=' * 56)
+    print('Tip: paste this back to your assistant to punch up the commentary.')
 
 
 if __name__ == '__main__':
