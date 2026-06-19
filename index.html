@@ -357,6 +357,24 @@
     .kb-round:not(:last-child) .kb-cell::after { width: 11px; }
     .kb-round:not(:first-child) .kb-cell::before { width: 11px; }
   }
+
+  /* GOLDEN BOOT */
+  .gb-list { display: flex; flex-direction: column; gap: 6px; }
+  .gb-row { display: grid; grid-template-columns: 36px 1fr auto auto; align-items: center; gap: 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+  .gb-rank { font-family: 'Teko', sans-serif; font-size: 18px; font-weight: 600; color: var(--text-secondary); text-align: center; }
+  .gb-player { display: flex; flex-direction: column; min-width: 0; }
+  .gb-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gb-country { font-size: 11px; color: var(--text-secondary); }
+  .gb-status { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .03em; padding: 3px 8px; border-radius: 20px; white-space: nowrap; background: var(--bg-secondary); color: var(--text-secondary); }
+  .gb-status.adv { background: var(--green-light); color: var(--green-dark); }
+  .gb-status.elim { background: #f3d6d2; color: #9B2D1F; }
+  .gb-goals { font-family: 'Teko', sans-serif; font-size: 24px; font-weight: 600; color: var(--green); text-align: right; white-space: nowrap; }
+  .gb-goals-lbl { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; color: var(--text-secondary); }
+  @media (max-width: 600px) {
+    .gb-row { grid-template-columns: 28px 1fr auto; gap: 8px; }
+    .gb-status { grid-column: 2 / 4; justify-self: start; margin-top: 2px; }
+    .gb-goals { grid-row: 1; grid-column: 3; }
+  }
 </style>
 </head>
 <body>
@@ -378,6 +396,7 @@
     <button class="tab-btn" onclick="switchTab('schedule')">📆 Schedule</button>
     <button class="tab-btn" onclick="switchTab('advancing')">🎯 3rd Place</button>
     <button class="tab-btn" onclick="switchTab('knockout')">🏟️ Knockout</button>
+    <button class="tab-btn" onclick="switchTab('goldenboot')">🥇 Golden Boot</button>
   </div>
 
   <div id="tab-leaderboard" class="tab-panel active">
@@ -463,6 +482,11 @@
   <div id="tab-knockout" class="tab-panel">
     <div class="info-banner">Full knockout bracket. Round-of-32 seeds (1A, 2B, 3rd) fill in live from current standings — green-bordered matches are fully projected. Later rounds show "Winner [match #]" until teams are known. Scroll sideways to see the whole bracket.</div>
     <div id="knockout-content"></div>
+  </div>
+
+  <div id="tab-goldenboot" class="tab-panel">
+    <div class="info-banner">🥇 Race for the Golden Boot — most goals scored (own goals not counted). Each player shows their country and where that team stands. Updates as games finish.</div>
+    <div id="goldenboot-content"></div>
   </div>
 </div>
 
@@ -666,9 +690,11 @@ const MATCH_TIMES = {
 
 let selectedPred=FRIEND_NAMES[Math.floor(Math.random()*FRIEND_NAMES.length)];
 const scores=Object.assign({},CONFIRMED_SCORES);
+// Goal scorers (own goals excluded), maintained by the bot. p=player, t=team, g=goals.
+const SCORERS=[{p:'Jonathan David',t:'Canada',g:3},{p:'Lionel Messi',t:'Argentina',g:3},{p:'Cyle Larin',t:'Canada',g:2},{p:'Elijah Just',t:'New Zealand',g:2},{p:'Erling Haaland',t:'Norway',g:2},{p:'Folarin Balogun',t:'USA',g:2},{p:'Harry Kane',t:'England',g:2},{p:'Johan Manzambi',t:'Switzerland',g:2},{p:'Kai Havertz',t:'Germany',g:2},{p:'Kylian Mbappé',t:'France',g:2},{p:'Yasin Ayari',t:'Sweden',g:2},{p:'Abbosbek Fayzullaev',t:'Uzbekistan',g:1},{p:'Abdulelah Al-Amri',t:'Saudi Arabia',g:1},{p:'Alexander Isak',t:'Sweden',g:1},{p:'Ali Olwan',t:'Jordan',g:1},{p:'Amad Diallo',t:'Ivory Coast',g:1},{p:'Aymen Hussein',t:'Iraq',g:1},{p:'Bradley Barcola',t:'France',g:1},{p:'Breel Embolo',t:'Switzerland',g:1},{p:'Caleb Yirenkyi',t:'Ghana',g:1},{p:'Connor Metcalfe',t:'Australia',g:1},{p:'Crysencio Summerville',t:'Netherlands',g:1},{p:'Daichi Kamada',t:'Japan',g:1},{p:'Daniel Muñoz',t:'Colombia',g:1},{p:'Deniz Undav',t:'Germany',g:1},{p:'Emam Ashour',t:'Egypt',g:1},{p:'Ermin Mahmic',t:'Bosnia and Herzegovina',g:1},{p:'Felix Nmecha',t:'Germany',g:1},{p:'Giovanni Reyna',t:'USA',g:1},{p:'Granit Xhaka',t:'Switzerland',g:1},{p:'Hwang In-Beom',t:'South Korea',g:1},{p:'Ibrahim Mbaye',t:'Senegal',g:1},{p:'Ismael Saibari',t:'Morocco',g:1},{p:'Jamal Musiala',t:'Germany',g:1},{p:'John McGinn',t:'Scotland',g:1},{p:'Jovo Lukic',t:'Bosnia and Herzegovina',g:1},{p:'João Neves',t:'Portugal',g:1},{p:'Jude Bellingham',t:'England',g:1},{p:'Julián Quiñones',t:'Mexico',g:1},{p:'Jáminton Campaz',t:'Colombia',g:1},{p:'Keito Nakamura',t:'Japan',g:1},{p:'Ladislav Krejcí',t:'Czechia',g:1},{p:'Leo Østigard',t:'Norway',g:1},{p:'Livano Comenencia',t:'Curaçao',g:1},{p:'Luis Díaz',t:'Colombia',g:1},{p:'Luis Romo',t:'Mexico',g:1},{p:'Marcus Rashford',t:'England',g:1},{p:'Marko Arnautovic',t:'Austria',g:1},{p:'Martin Baturina',t:'Croatia',g:1},{p:'Mattias Svanberg',t:'Sweden',g:1},{p:'Maurício',t:'Paraguay',g:1},{p:'Maxi Araújo',t:'Uruguay',g:1},{p:'Michal Sadílek',t:'Czechia',g:1},{p:'Mohammad Mohebbi',t:'Iran',g:1},{p:'Nathan Saliba',t:'Canada',g:1},{p:'Nathaniel Brown',t:'Germany',g:1},{p:'Nestory Irankunda',t:'Australia',g:1},{p:'Nico Schlotterbeck',t:'Germany',g:1},{p:'Oh Hyeon-Gyu',t:'South Korea',g:1},{p:'Omar Rekik',t:'Tunisia',g:1},{p:'Petar Musa',t:'Croatia',g:1},{p:'Ramin Rezaeian',t:'Iran',g:1},{p:'Raúl Jiménez',t:'Mexico',g:1},{p:'Romano Schmid',t:'Austria',g:1},{p:'Rubén Vargas',t:'Switzerland',g:1},{p:'Teboho Mokoena',t:'South Africa',g:1},{p:'Viktor Gyökeres',t:'Sweden',g:1},{p:'Vinícius Júnior',t:'Brazil',g:1},{p:'Virgil van Dijk',t:'Netherlands',g:1},{p:'Yoane Wissa',t:'DR Congo',g:1}];
 
 function switchTab(name){
-  const names=['leaderboard','today','groups','predictions','schedule','advancing','knockout'];
+  const names=['leaderboard','today','groups','predictions','schedule','advancing','knockout','goldenboot'];
   document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',names[i]===name));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
@@ -734,7 +760,7 @@ function totalScore(name){
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
-function renderAll(){renderLeaderboard();renderToday();renderGroups();renderPredictions();renderSchedule();renderAdvancing();renderKnockout();}
+function renderAll(){renderLeaderboard();renderToday();renderGroups();renderPredictions();renderSchedule();renderAdvancing();renderKnockout();renderGoldenBoot();}
 
 let scheduleToggled={};
 function toggleSchedDay(d,open){scheduleToggled[d]=open;}
@@ -1301,6 +1327,39 @@ function renderKnockout(){
   html+=`<div class="kb-third"><div class="kb-round-title">🥉 Third-Place Play-off</div>${box(tpHead,tpRows,tp.city,false,tp.venue+', '+tp.city)}</div>`;
 
   el.innerHTML=html;
+}
+
+// Where a team currently stands (round / advanced / eliminated)
+function teamStatus(team){
+  const g=TEAM_TO_GROUP[team];
+  if(!g)return{label:'—',cls:''};
+  const st=calcStandings(g);
+  const pos=st.findIndex(t=>t.name===team)+1;
+  const ord=['','1st','2nd','3rd','4th'][pos]||pos+'th';
+  if(!groupComplete(g))return{label:`Group ${g} · ${ord} now`,cls:'gs'};
+  if(pos<=2)return{label:`Advanced · ${ord} in Group ${g}`,cls:'adv'};
+  if(pos===3&&computeThirdAdvancing().includes(team))return{label:`Advanced · best 3rd (Group ${g})`,cls:'adv'};
+  return{label:`Eliminated · ${ord} in Group ${g}`,cls:'elim'};
+}
+
+function renderGoldenBoot(){
+  const el=document.getElementById('goldenboot-content');if(!el)return;
+  if(!SCORERS||!SCORERS.length){el.innerHTML='<div class="info-banner">No goals yet.</div>';return;}
+  // dense rank (players on the same goal count share a rank)
+  let rows='',lastG=null,rank=0,shown=0;
+  SCORERS.forEach(s=>{
+    if(s.g!==lastG){rank=shown+1;lastG=s.g;}
+    shown++;
+    const stt=teamStatus(s.t);
+    const medal=rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank;
+    rows+=`<div class="gb-row">`
+      +`<span class="gb-rank">${medal}</span>`
+      +`<span class="gb-player"><span class="gb-name">${esc(s.p)}</span><span class="gb-country">${esc(s.t)}</span></span>`
+      +`<span class="gb-status ${stt.cls}">${esc(stt.label)}</span>`
+      +`<span class="gb-goals">${s.g}<span class="gb-goals-lbl"> ${s.g===1?'goal':'goals'}</span></span>`
+      +`</div>`;
+  });
+  el.innerHTML=`<div class="gb-list">${rows}</div>`;
 }
 
 renderAll();

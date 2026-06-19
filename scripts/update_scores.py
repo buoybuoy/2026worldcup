@@ -82,10 +82,10 @@ def find_match_key(home, away):
 
 
 def fetch_all():
-    """Return (scores, times, dates) keyed by match key. PT used for times/dates."""
-    scores, times, dates = {}, {}, {}
+    """Return (scores, times, dates, scorers). scorers: {(player, team): goals}."""
+    scores, times, dates, scorers = {}, {}, {}, {}
     start = date(2026, 6, 11)
-    end = date(2026, 6, 27)
+    end = date(2026, 7, 19)  # through the final, so the golden boot keeps tallying
     current = start
 
     while current <= end:
@@ -108,6 +108,24 @@ def fetch_all():
 
                 home = normalize(home_data['team']['displayName'])
                 away = normalize(away_data['team']['displayName'])
+
+                # Goal scorers — tally for the Golden Boot (completed matches,
+                # own goals excluded). Independent of group-match mapping so it
+                # also works for knockout games.
+                if comp['status']['type'].get('completed'):
+                    id2name = {str(c.get('id')): normalize(c['team']['displayName'])
+                               for c in comp['competitors']}
+                    for det in comp.get('details', []):
+                        if not det.get('scoringPlay'):
+                            continue
+                        typ = ((det.get('type') or {}).get('text') or '').lower()
+                        if 'own goal' in typ:
+                            continue
+                        ath = det.get('athletesInvolved') or []
+                        pname = ath[0].get('displayName') if ath else None
+                        tname = id2name.get(str((det.get('team') or {}).get('id')))
+                        if pname and tname:
+                            scorers[(pname, tname)] = scorers.get((pname, tname), 0) + 1
 
                 key, swapped = find_match_key(home, away)
                 if key is None:
@@ -133,10 +151,10 @@ def fetch_all():
 
         current += timedelta(days=1)
 
-    return scores, times, dates
+    return scores, times, dates, scorers
 
 
-def update_html(filepath, scores, times, dates):
+def update_html(filepath, scores, times, dates, scorers):
     with open(filepath, encoding='utf-8') as f:
         content = f.read()
     original = content
@@ -169,18 +187,28 @@ def update_html(filepath, scores, times, dates):
             date_changes += 1
         content = new_content
 
+    # 4) SCORERS — Golden Boot tally, sorted by goals desc then name
+    def esc(s):
+        return s.replace('\\', '\\\\').replace("'", "\\'")
+    rows = sorted(scorers.items(), key=lambda kv: (-kv[1], kv[0][0]))
+    scorers_js = '[' + ','.join(
+        "{p:'%s',t:'%s',g:%d}" % (esc(p), esc(t), n) for (p, t), n in rows
+    ) + ']'
+    content = re.sub(r'const SCORERS=\[[^\]]*\];', f'const SCORERS={scorers_js};', content)
+
     if content == original:
         print('No changes to index.html.')
         return False
 
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(content)
-    print(f'Updated index.html — {len(scores)} scores, {time_changes} kickoff times, {date_changes} dates changed.')
+    print(f'Updated index.html — {len(scores)} scores, {time_changes} kickoff times, '
+          f'{date_changes} dates, {len(rows)} scorers.')
     return True
 
 
 if __name__ == '__main__':
-    print('Fetching scores and kickoff times...')
-    scores, times, dates = fetch_all()
-    print(f'Found {len(scores)} completed matches, {len(times)} scheduled kickoffs.')
-    update_html('index.html', scores, times, dates)
+    print('Fetching scores, kickoff times, and goal scorers...')
+    scores, times, dates, scorers = fetch_all()
+    print(f'Found {len(scores)} completed matches, {len(times)} scheduled kickoffs, {len(scorers)} scorers.')
+    update_html('index.html', scores, times, dates, scorers)
