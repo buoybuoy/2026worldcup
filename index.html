@@ -165,6 +165,8 @@
   .qualify-bar { height: 2px; background: var(--green); margin: 4px 0; border-radius: 1px; opacity: 0.4; }
   .team-row.clinched .tname { color: var(--green-dark); font-weight: 600; }
   .team-in { color: var(--green); font-weight: 700; }
+  .team-row.eliminated { opacity: 0.45; }
+  .team-out { color: #C0392B; font-weight: 700; }
   /* expandable group card (groups + scores combined) */
   details.group-card > summary { list-style: none; cursor: pointer; outline: none; }
   details.group-card > summary::-webkit-details-marker { display: none; }
@@ -448,7 +450,7 @@
   </div>
 
   <div id="tab-groups" class="tab-panel">
-    <div class="info-banner">Standings update live. A green <strong>✓</strong> means the team has officially clinched a top-2 spot. Tap any group to expand its match results.</div>
+    <div class="info-banner">Standings update live. <strong>✓</strong> = officially clinched a top-2 spot; <strong>✗</strong> (greyed) = mathematically eliminated. Tap any group to expand its match results.</div>
     <div id="groups-content" class="group-grid"></div>
   </div>
 
@@ -1156,8 +1158,11 @@ function renderGroups(){
     const standings=`<div class="team-header-row"><span></span><span>Team</span><span>W</span><span>D</span><span>L</span><span>GD</span><span>Pts</span></div>`
       +teams.map((t,i)=>{
         const inK=clinchedTop2(t.name);
-        const mark=inK?' <span class="team-in" title="Officially qualified">✓</span>':'';
-        return (i===2?'<div class="qualify-bar"></div>':'')+`<div class="team-row${inK?' clinched':''}"><span class="pos">${i+1}</span><span class="tname" title="${esc(t.name)}">${esc(t.name)}${mark}</span><span class="stat">${t.w}</span><span class="stat">${t.d}</span><span class="stat">${t.l}</span><span class="stat">${t.gf-t.ga>=0?'+':''}${t.gf-t.ga}</span><span class="tpts">${t.pts}</span></div>`;
+        const out=!inK&&mathEliminated(t.name);
+        const mark=inK?' <span class="team-in" title="Officially qualified">✓</span>'
+          :(out?' <span class="team-out" title="Eliminated">✗</span>':'');
+        const cls=inK?' clinched':(out?' eliminated':'');
+        return (i===2?'<div class="qualify-bar"></div>':'')+`<div class="team-row${cls}"><span class="pos">${i+1}</span><span class="tname" title="${esc(t.name)}">${esc(t.name)}${mark}</span><span class="stat">${t.w}</span><span class="stat">${t.d}</span><span class="stat">${t.l}</span><span class="stat">${t.gf-t.ga>=0?'+':''}${t.gf-t.ga}</span><span class="tpts">${t.pts}</span></div>`;
       }).join('');
     const scoresList=MATCHES[g].map(([h,a])=>{
       const key=g+'|'+h+'|'+a,sc=scores[key];
@@ -1277,6 +1282,26 @@ function clinchedTop2(team){
     let badOrEqual=0;
     GROUPS[g].forEach(t=>{if(t!==team&&p[t]>=p[team])badOrEqual++;});
     if(badOrEqual>=2)return false; // two teams could finish at/above → not safe
+  }
+  return true;
+}
+
+// True if a team can no longer reach a top-2 finish in any remaining scenario
+// (mathematically eliminated). Optimistic on point ties (favours the team).
+function mathEliminated(team){
+  const g=TEAM_TO_GROUP[team];
+  if(!g)return false;
+  const remaining=MATCHES[g].filter(([h,a])=>{const s=scores[g+'|'+h+'|'+a];return !(s&&s[0]!==''&&s[1]!=='');});
+  const cur=calcStandings(g);
+  if(remaining.length===0)return cur.findIndex(t=>t.name===team)>=2;
+  const pts0={};cur.forEach(t=>pts0[t.name]=t.pts);
+  const n=remaining.length,total=Math.pow(3,n);
+  for(let mask=0;mask<total;mask++){
+    const p=Object.assign({},pts0);let m=mask;
+    for(let i=0;i<n;i++){const o=m%3;m=Math.floor(m/3);const[h,a]=remaining[i];if(o===0)p[h]+=3;else if(o===1){p[h]++;p[a]++;}else p[a]+=3;}
+    let above=0;
+    GROUPS[g].forEach(t=>{if(t!==team&&p[t]>p[team])above++;});
+    if(above<=1)return false; // a scenario exists where the team can be top 2
   }
   return true;
 }
