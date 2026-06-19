@@ -163,6 +163,8 @@
   .team-row .stat { text-align: center; color: var(--text-secondary); font-size: 11px; }
   .team-row .tpts { text-align: center; font-weight: 600; font-size: 13px; }
   .qualify-bar { height: 2px; background: var(--green); margin: 4px 0; border-radius: 1px; opacity: 0.4; }
+  .team-row.clinched .tname { color: var(--green-dark); font-weight: 600; }
+  .team-in { color: var(--green); font-weight: 700; }
   /* expandable group card (groups + scores combined) */
   details.group-card > summary { list-style: none; cursor: pointer; outline: none; }
   details.group-card > summary::-webkit-details-marker { display: none; }
@@ -446,7 +448,7 @@
   </div>
 
   <div id="tab-groups" class="tab-panel">
-    <div class="info-banner">Standings update live. Tap any group to expand its match results.</div>
+    <div class="info-banner">Standings update live. A green <strong>✓</strong> means the team has officially clinched a top-2 spot. Tap any group to expand its match results.</div>
     <div id="groups-content" class="group-grid"></div>
   </div>
 
@@ -1152,7 +1154,11 @@ function renderGroups(){
     const statusText=complete?'Complete':played>0?'In progress':'Not started';
     const statusCls=complete?'done':played>0?'live':'';
     const standings=`<div class="team-header-row"><span></span><span>Team</span><span>W</span><span>D</span><span>L</span><span>GD</span><span>Pts</span></div>`
-      +teams.map((t,i)=>(i===2?'<div class="qualify-bar"></div>':'')+`<div class="team-row"><span class="pos">${i+1}</span><span class="tname" title="${esc(t.name)}">${esc(t.name)}</span><span class="stat">${t.w}</span><span class="stat">${t.d}</span><span class="stat">${t.l}</span><span class="stat">${t.gf-t.ga>=0?'+':''}${t.gf-t.ga}</span><span class="tpts">${t.pts}</span></div>`).join('');
+      +teams.map((t,i)=>{
+        const inK=clinchedTop2(t.name);
+        const mark=inK?' <span class="team-in" title="Officially qualified">✓</span>':'';
+        return (i===2?'<div class="qualify-bar"></div>':'')+`<div class="team-row${inK?' clinched':''}"><span class="pos">${i+1}</span><span class="tname" title="${esc(t.name)}">${esc(t.name)}${mark}</span><span class="stat">${t.w}</span><span class="stat">${t.d}</span><span class="stat">${t.l}</span><span class="stat">${t.gf-t.ga>=0?'+':''}${t.gf-t.ga}</span><span class="tpts">${t.pts}</span></div>`;
+      }).join('');
     const scoresList=MATCHES[g].map(([h,a])=>{
       const key=g+'|'+h+'|'+a,sc=scores[key];
       const hs=sc&&sc[0]!==''&&sc[1]!=='';
