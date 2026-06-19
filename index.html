@@ -342,6 +342,8 @@
   .kb-team + .kb-team { border-top: 1px solid var(--border); }
   .kb-team-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .kb-team-name.tbd { color: var(--text-secondary); font-weight: 500; font-size: 12px; }
+  .kb-team.clinched .kb-team-name { color: var(--green-dark); }
+  .kb-in { color: var(--green); font-weight: 700; font-size: 11px; }
   .kb-seed { font-size: 11px; color: var(--text-secondary); flex-shrink: 0; font-family: 'Teko', sans-serif; }
   .kb-box-foot { font-size: 9px; color: var(--text-secondary); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* connectors */
@@ -480,7 +482,7 @@
   </div>
 
   <div id="tab-knockout" class="tab-panel">
-    <div class="info-banner">Full knockout bracket. Round-of-32 seeds (1A, 2B, 3rd) fill in live from current standings — green-bordered matches are fully projected. Later rounds show "Winner [match #]" until teams are known. Scroll sideways to see the whole bracket.</div>
+    <div class="info-banner">Full knockout bracket. Round-of-32 seeds (1A, 2B, 3rd) fill in live from current standings. A green <strong>✓</strong> next to a team means it has <strong>officially clinched</strong> a top-2 spot (mathematically through); others are current projections. Later rounds show "Winner [match #]" until teams are known. Scroll sideways to see the whole bracket.</div>
     <div id="knockout-content"></div>
   </div>
 
@@ -1253,6 +1255,26 @@ function renderAdvancing(){
   });
 }
 
+// True if a team has mathematically clinched a top-2 group finish (officially
+// qualified). Brute-forces remaining group results; pessimistic on point ties.
+function clinchedTop2(team){
+  const g=TEAM_TO_GROUP[team];
+  if(!g)return false;
+  const remaining=MATCHES[g].filter(([h,a])=>{const s=scores[g+'|'+h+'|'+a];return !(s&&s[0]!==''&&s[1]!=='');});
+  const cur=calcStandings(g);
+  if(remaining.length===0)return cur.findIndex(t=>t.name===team)<2;
+  const pts0={};cur.forEach(t=>pts0[t.name]=t.pts);
+  const n=remaining.length,total=Math.pow(3,n);
+  for(let mask=0;mask<total;mask++){
+    const p=Object.assign({},pts0);let m=mask;
+    for(let i=0;i<n;i++){const o=m%3;m=Math.floor(m/3);const[h,a]=remaining[i];if(o===0)p[h]+=3;else if(o===1){p[h]++;p[a]++;}else p[a]+=3;}
+    let badOrEqual=0;
+    GROUPS[g].forEach(t=>{if(t!==team&&p[t]>=p[team])badOrEqual++;});
+    if(badOrEqual>=2)return false; // two teams could finish at/above → not safe
+  }
+  return true;
+}
+
 function renderKnockout(){
   const el=document.getElementById('knockout-content');el.innerHTML='';
   const top8=computeThirdAdvancing();
@@ -1261,15 +1283,16 @@ function renderKnockout(){
   function shortDate(d){const dt=new Date(d+'T12:00:00');const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return m[dt.getMonth()]+' '+dt.getDate();}
   function shortTime(t){const[h,mn]=t.split(':').map(Number);const ap=h>=12?'PM':'AM';const h12=h%12||12;return mn?`${h12}:${String(mn).padStart(2,'0')} ${ap}`:`${h12} ${ap}`;}
 
-  // R32 slot → [side1, side2]; each side {name, seed, poolTitle?}
+  // R32 slot → [side1, side2]; each side {name, seed, clinched, poolTitle?}
+  const mk=(name,seed,extra)=>Object.assign({name,seed,clinched:name?clinchedTop2(name):false},extra||{});
   function r32Sides(slot){
-    if(slot.type==='ru-ru')return[{name:st(slot.a)[1]&&st(slot.a)[1].name,seed:'2'+slot.a},{name:st(slot.b)[1]&&st(slot.b)[1].name,seed:'2'+slot.b}];
-    if(slot.type==='w-ru')return[{name:st(slot.w)[0]&&st(slot.w)[0].name,seed:'1'+slot.w},{name:st(slot.ru)[1]&&st(slot.ru)[1].name,seed:'2'+slot.ru}];
+    if(slot.type==='ru-ru')return[mk(st(slot.a)[1]&&st(slot.a)[1].name,'2'+slot.a),mk(st(slot.b)[1]&&st(slot.b)[1].name,'2'+slot.b)];
+    if(slot.type==='w-ru')return[mk(st(slot.w)[0]&&st(slot.w)[0].name,'1'+slot.w),mk(st(slot.ru)[1]&&st(slot.ru)[1].name,'2'+slot.ru)];
     // w-3rd
     const cands=slot.pool.map(g=>({g,team:st(g)[2]&&st(g)[2].name})).filter(c=>c.team&&top8.includes(c.team));
     const t2=cands.length===1?cands[0].team:'';
     const poolTitle='3rd from groups '+slot.pool.join('/')+(cands.length?' · projected: '+cands.map(c=>c.team).join(' or '):' · none in top 8 yet');
-    return[{name:st(slot.w)[0]&&st(slot.w)[0].name,seed:'1'+slot.w},{name:t2,seed:'3rd',poolTitle}];
+    return[mk(st(slot.w)[0]&&st(slot.w)[0].name,'1'+slot.w),Object.assign(mk(t2,'3rd'),{poolTitle,clinched:false})];
   }
 
   function teamRow(side){
@@ -1277,7 +1300,8 @@ function renderKnockout(){
     const main=nm?esc(nm):esc(side.seed||'TBD');
     const sub=nm?esc(side.seed||''):'';
     const titleAttr=side.poolTitle?` title="${esc(side.poolTitle)}"`:'';
-    return `<div class="kb-team"><span class="kb-team-name${nm?'':' tbd'}"${titleAttr}>${main}</span><span class="kb-seed">${sub}</span></div>`;
+    const inMark=side.clinched?' <span class="kb-in" title="Officially qualified">✓</span>':'';
+    return `<div class="kb-team${side.clinched?' clinched':''}"><span class="kb-team-name${nm?'':' tbd'}"${titleAttr}>${main}${inMark}</span><span class="kb-seed">${sub}</span></div>`;
   }
   function feederRow(num){return `<div class="kb-team"><span class="kb-team-name tbd">Winner ${num}</span></div>`;}
   function box(head,rowsHtml,city,proj,fullVenue){
