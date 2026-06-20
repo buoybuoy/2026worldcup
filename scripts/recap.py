@@ -222,8 +222,17 @@ def main():
         return f'{int(m)}/{int(d)}'
 
     medals = {1: '🥇', 2: '🥈', 3: '🥉'}
-    top = sorted([n for n in NAMES if r_end[n] <= 3], key=lambda n: (r_end[n], -tot_end[n], short(n)))
-    top_lines = [f'{medals.get(r_end[n], "")} **{r_end[n]}. {short(n)} — {tot_end[n]}**' for n in top]
+    # group players who share a rank onto one line ("A & B — pts (tied)")
+    top = sorted([n for n in NAMES if r_end[n] <= 3], key=lambda n: (r_end[n], short(n)))
+    by_rank = {}
+    for n in top:
+        by_rank.setdefault(r_end[n], []).append(n)
+    top_lines = []
+    for rk in sorted(by_rank):
+        grp = by_rank[rk]
+        names = ' & '.join(short(n) for n in grp) if len(grp) <= 2 else ', '.join(short(n) for n in grp)
+        tie = ' _(tied)_' if len(grp) > 1 else ''
+        top_lines.append(f'{medals.get(rk, "")} **{rk}. {names} — {tot_end[grp[0]]}**{tie}')
     leaders = [n for n in NAMES if r_end[n] == 1]
     others = [tot_end[n] for n in NAMES if r_end[n] > 1]
     if len(leaders) == 1 and others:
