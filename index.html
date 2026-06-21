@@ -313,6 +313,7 @@
   .sched-time { font-family: 'Teko', sans-serif; font-size: 16px; font-weight: 600; color: var(--text-secondary); width: 68px; flex-shrink: 0; }
   .sched-group { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 7px; border-radius: 4px; background: var(--bg-secondary); color: var(--text-secondary); flex-shrink: 0; width: 32px; text-align: center; }
   .sched-group.sched-ko { width: auto; min-width: 32px; background: #E3ECFB; color: #2C5CAB; }
+  .sched-channel { flex-shrink: 0; min-width: 34px; text-align: right; font-size: 10px; font-weight: 700; color: var(--text-secondary); letter-spacing: 0.02em; }
   .ko-row .sched-team { color: var(--text-secondary); font-weight: 500; }
   .sched-teams { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
   .sched-team { font-size: 13px; font-weight: 500; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -743,6 +744,8 @@ const MATCH_TIMES = {
   'K|Portugal|DR Congo':'10:00','K|Uzbekistan|Colombia':'19:00',
   'L|England|Croatia':'13:00','L|Panama|Ghana':'16:00',
 };
+// US English broadcast channel per match (FOX / FS1), maintained by the bot.
+const CHANNELS = {'A|Mexico|Czechia':'FOX','A|Mexico|South Africa':'FOX','A|Mexico|South Korea':'FOX','A|South Africa|Czechia':'FOX','A|South Africa|South Korea':'FS1','A|South Korea|Czechia':'FS1','B|Bosnia and Herzegovina|Qatar':'FS1','B|Canada|Bosnia and Herzegovina':'FOX','B|Canada|Qatar':'FS1','B|Canada|Switzerland':'FOX','B|Qatar|Switzerland':'FOX','B|Switzerland|Bosnia and Herzegovina':'FOX','C|Brazil|Haiti':'FOX','C|Brazil|Morocco':'FOX','C|Brazil|Scotland':'FOX','C|Morocco|Haiti':'FS1','C|Scotland|Haiti':'FOX','C|Scotland|Morocco':'FOX','D|Australia|Paraguay':'FS1','D|Australia|Türkiye':'FS1','D|Paraguay|Türkiye':'FS1','D|USA|Australia':'FOX','D|USA|Paraguay':'FOX','D|USA|Türkiye':'FOX','E|Ecuador|Curaçao':'FS1','E|Ecuador|Ivory Coast':'FS1','E|Germany|Curaçao':'FOX','E|Germany|Ecuador':'FOX','E|Germany|Ivory Coast':'FOX','E|Ivory Coast|Curaçao':'FS1','F|Japan|Sweden':'FS1','F|Japan|Tunisia':'FS1','F|Netherlands|Japan':'FOX','F|Netherlands|Sweden':'FOX','F|Netherlands|Tunisia':'FOX','F|Tunisia|Sweden':'FS1','G|Belgium|Egypt':'FOX','G|Belgium|Iran':'FS1','G|Belgium|New Zealand':'FOX','G|Egypt|Iran':'FS1','G|Egypt|New Zealand':'FS1','G|Iran|New Zealand':'FS1','H|Saudi Arabia|Cape Verde':'FS1','H|Spain|Cape Verde':'FOX','H|Spain|Saudi Arabia':'FOX','H|Spain|Uruguay':'FOX','H|Uruguay|Cape Verde':'FS1','H|Uruguay|Saudi Arabia':'FS1','I|France|Iraq':'FOX','I|France|Norway':'FOX','I|France|Senegal':'FOX','I|Iraq|Norway':'FOX','I|Senegal|Iraq':'FS1','I|Senegal|Norway':'FOX','J|Algeria|Austria':'FS1','J|Algeria|Jordan':'FS1','J|Argentina|Algeria':'FOX','J|Argentina|Austria':'FOX','J|Argentina|Jordan':'FOX','J|Austria|Jordan':'FS1','K|Colombia|DR Congo':'FS1','K|Portugal|Colombia':'FOX','K|Portugal|DR Congo':'FOX','K|Portugal|Uzbekistan':'FOX','K|Uzbekistan|Colombia':'FS1','K|Uzbekistan|DR Congo':'FS1','L|Croatia|Ghana':'FS1','L|England|Croatia':'FOX','L|England|Ghana':'FOX','L|England|Panama':'FOX','L|Panama|Croatia':'FOX','L|Panama|Ghana':'FS1'};
 
 let selectedPred=FRIEND_NAMES[Math.floor(Math.random()*FRIEND_NAMES.length)];
 const scores=Object.assign({},CONFIRMED_SCORES);
@@ -878,6 +881,7 @@ function renderSchedule(){
     const scoreDisplay=hasScore
       ?`<span class="sched-score">${sc[0]}–${sc[1]}</span>`
       :`<span class="sched-vs">vs</span>`;
+    const chan=CHANNELS[m.key];
     return `<div class="schedule-match-row${hasScore?' played':''}">
       <span class="sched-time">${timeStr}</span>
       <span class="sched-group">${m.g}</span>
@@ -886,6 +890,7 @@ function renderSchedule(){
         ${scoreDisplay}
         <span class="sched-team right">${esc(m.a)}</span>
       </div>
+      <span class="sched-channel">${chan?esc(chan):''}</span>
     </div>`;
   }).join('');
   const daySection=date=>`<div class="schedule-day"><div class="schedule-date-header">${dayLabelFor(date)}</div>${rowsFor(byDate[date])}</div>`;

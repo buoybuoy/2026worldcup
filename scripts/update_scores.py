@@ -82,8 +82,8 @@ def find_match_key(home, away):
 
 
 def fetch_all():
-    """Return (scores, times, dates, scorers). scorers: {(player, team): goals}."""
-    scores, times, dates, scorers = {}, {}, {}, {}
+    """Return (scores, times, dates, scorers, channels)."""
+    scores, times, dates, scorers, channels = {}, {}, {}, {}, {}
     start = date(2026, 6, 11)
     end = date(2026, 7, 19)  # through the final, so the golden boot keeps tallying
     current = start
@@ -140,6 +140,13 @@ def fetch_all():
                     times[key] = pt_dt.strftime('%H:%M')
                     dates[key] = pt_dt.strftime('%Y-%m-%d')
 
+                # US English broadcast channel (FOX / FS1)
+                bc = comp.get('broadcasts') or []
+                names = bc[0].get('names') if bc and bc[0].get('names') else []
+                chan = next((n for n in names if n in ('FOX', 'FS1')), names[0] if names else '')
+                if chan:
+                    channels[key] = chan
+
                 # Final score (completed only)
                 if comp['status']['type'].get('completed'):
                     hs = str(int(float(home_data['score'])))
@@ -151,13 +158,21 @@ def fetch_all():
 
         current += timedelta(days=1)
 
-    return scores, times, dates, scorers
+    return scores, times, dates, scorers, channels
 
 
-def update_html(filepath, scores, times, dates, scorers):
+def update_html(filepath, scores, times, dates, scorers, channels):
     with open(filepath, encoding='utf-8') as f:
         content = f.read()
     original = content
+
+    # CHANNELS — full rewrite (broadcast channel per match)
+    if channels:
+        channels_js = '{' + ','.join(
+            f"'{k}':'{v}'" for k, v in sorted(channels.items())
+        ) + '}'
+        content = re.sub(r'const CHANNELS = \{[^}]*\};',
+                         f'const CHANNELS = {channels_js};', content)
 
     # 1) CONFIRMED_SCORES — full rewrite
     scores_js = '{' + ','.join(
@@ -203,12 +218,13 @@ def update_html(filepath, scores, times, dates, scorers):
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(content)
     print(f'Updated index.html — {len(scores)} scores, {time_changes} kickoff times, '
-          f'{date_changes} dates, {len(rows)} scorers.')
+          f'{date_changes} dates, {len(rows)} scorers, {len(channels)} channels.')
     return True
 
 
 if __name__ == '__main__':
-    print('Fetching scores, kickoff times, and goal scorers...')
-    scores, times, dates, scorers = fetch_all()
-    print(f'Found {len(scores)} completed matches, {len(times)} scheduled kickoffs, {len(scorers)} scorers.')
-    update_html('index.html', scores, times, dates, scorers)
+    print('Fetching scores, kickoff times, scorers, and channels...')
+    scores, times, dates, scorers, channels = fetch_all()
+    print(f'Found {len(scores)} completed matches, {len(times)} scheduled kickoffs, '
+          f'{len(scorers)} scorers, {len(channels)} channels.')
+    update_html('index.html', scores, times, dates, scorers, channels)
