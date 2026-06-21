@@ -201,6 +201,15 @@
   .chip.wrong { background: var(--red-light); color: var(--red-dark); border-color: #f0b8b8; }
   .perfect-badge { display: inline-block; font-size: 10px; background: var(--gold); color: var(--gold-dark); border-radius: 4px; padding: 1px 7px; font-weight: 600; margin-top: 4px; }
   .third-section-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-secondary); margin-bottom: 6px; }
+  /* knockout bracket predictions */
+  .kp-subtitle { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; }
+  .kp-pick { width: 100%; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kp-pick.correct { border-color: var(--green); background: var(--green-light); color: var(--green-dark); }
+  .kp-pick.wrong { border-color: #e3b4ad; background: #f7e4e1; color: #9B2D1F; }
+  .kp-pick.inline { display: inline-block; width: auto; padding: 3px 12px; }
+  .kp-extra { margin-top: 14px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .kp-empty { background: var(--bg-secondary); border: 1px solid var(--border); border-left: 3px solid var(--green); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 12px 14px; font-size: 13px; color: var(--text-secondary); line-height: 1.7; }
+  .kp-legend { color: var(--text); font-weight: 500; }
   .chips-row { display: flex; flex-wrap: wrap; gap: 4px; }
 
   /* PREDICTIONS PICKER */
@@ -421,7 +430,7 @@
     <div id="last-game-line" style="font-size:12px;color:var(--text-secondary);text-align:right;margin-bottom:6px;min-height:16px;"></div>
     <div class="leaderboard-card">
       <table class="leaderboard-table">
-        <thead><tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change from the last completed game">Move</th><th>Name</th><th class="c">Groups</th><th class="c">3rd Adv.</th><th class="r">Total</th></tr></thead>
+        <thead><tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change from the last completed game">Move</th><th>Name</th><th class="c">Groups</th><th class="c">3rd Adv.</th><th class="c" title="Knockout bracket points">KO</th><th class="r">Total</th></tr></thead>
         <tbody id="leaderboard-body"></tbody>
       </table>
     </div>
@@ -653,6 +662,16 @@ const KNOCKOUT_LATER={
 const FRIEND_NAMES = ['Janice','Francisco','Matt','Rem','Tiffany KL','Mr.','대한민국 남바원','Robert','Anish','Emily','Vikram','David','Dan','Ha-Mi','光榮的人民主席 Chairman Lau'];
 const CONFIRMED_SCORES = {'A|Mexico|South Africa':['2','0'],'A|Mexico|South Korea':['1','0'],'A|South Africa|Czechia':['1','1'],'A|South Korea|Czechia':['2','1'],'B|Canada|Bosnia and Herzegovina':['1','1'],'B|Canada|Qatar':['6','0'],'B|Qatar|Switzerland':['1','1'],'B|Switzerland|Bosnia and Herzegovina':['4','1'],'C|Brazil|Haiti':['3','0'],'C|Brazil|Morocco':['1','1'],'C|Scotland|Haiti':['1','0'],'C|Scotland|Morocco':['0','1'],'D|Australia|Türkiye':['2','0'],'D|Paraguay|Türkiye':['1','0'],'D|USA|Australia':['2','0'],'D|USA|Paraguay':['4','1'],'E|Ecuador|Ivory Coast':['0','1'],'E|Germany|Curaçao':['7','1'],'F|Netherlands|Japan':['2','2'],'F|Netherlands|Sweden':['5','1'],'F|Tunisia|Sweden':['1','5'],'G|Belgium|Egypt':['1','1'],'G|Iran|New Zealand':['2','2'],'H|Spain|Cape Verde':['0','0'],'H|Uruguay|Saudi Arabia':['1','1'],'I|France|Senegal':['3','1'],'I|Iraq|Norway':['1','4'],'J|Argentina|Algeria':['3','0'],'J|Austria|Jordan':['3','1'],'K|Portugal|DR Congo':['1','1'],'K|Uzbekistan|Colombia':['1','3'],'L|England|Croatia':['4','2'],'L|Panama|Ghana':['0','1']};
 const POS_PTS=[25,15,10,5];
+// ===== Knockout bracket predictions (DRAFT) =====
+// Points awarded per correct match pick, by round (each round totals 400 → max 2000).
+const KO_SCORING={R32:25,R16:50,QF:100,SF:200,F:400};
+// Actual knockout winners, by round in bracket (tree) order. The bot will fill
+// these once knockout games are played; empty until then.
+const KO_RESULTS={r32:[],r16:[],qf:[],sf:[],final:''};
+// Each participant's bracket picks: winners by round in bracket order
+// (R32: 16, R16: 8, QF: 4, SF: 2, final). Filled once the Round of 32 is set
+// and participants submit their brackets.
+const KNOCKOUT_PREDS={};
 // Kickoff times in PT (24h), used to sort and display Today tab
 const MATCH_TIMES = {
   // June 11
@@ -761,9 +780,19 @@ function scoreThird(name){
   return{pts:correct.length*5,correct,pending:false};
 }
 
+function scoreKnockout(name){
+  const kp=KNOCKOUT_PREDS[name];if(!kp)return 0;
+  const R=KO_RESULTS||{};let pts=0;
+  const tally=(picks,res,per)=>{(picks||[]).forEach((t,i)=>{if(res&&res[i]&&t===res[i])pts+=per;});};
+  tally(kp.r32,R.r32,KO_SCORING.R32);tally(kp.r16,R.r16,KO_SCORING.R16);tally(kp.qf,R.qf,KO_SCORING.QF);tally(kp.sf,R.sf,KO_SCORING.SF);
+  if(kp.final&&R.final&&kp.final===R.final)pts+=KO_SCORING.F;
+  return pts;
+}
+
 function totalScore(name){
   let t=Object.keys(GROUPS).reduce((s,g)=>{const r=scoreGroup(name,g);return s+(r?r.pts:0);},0);
   t+=scoreThird(name).pts;
+  t+=scoreKnockout(name);
   return t;
 }
 
@@ -1136,7 +1165,7 @@ function renderLeaderboard(){
     delete baseScores[lg.g+'|'+lg.h+'|'+lg.a];
     baseRanks=withScores(baseScores,rankMap);
   }
-  const ranked=[...FRIEND_NAMES].map(n=>({n,total:totalScore(n),groupPts:Object.keys(GROUPS).reduce((s,g)=>{const r=scoreGroup(n,g);return s+(r?r.pts:0);},0),tp:scoreThird(n)})).sort((a,b)=>b.total-a.total);
+  const ranked=[...FRIEND_NAMES].map(n=>({n,total:totalScore(n),groupPts:Object.keys(GROUPS).reduce((s,g)=>{const r=scoreGroup(n,g);return s+(r?r.pts:0);},0),tp:scoreThird(n),ko:scoreKnockout(n)})).sort((a,b)=>b.total-a.total);
   let html='';
   ranked.forEach((f,i)=>{
     const rank=ranked.findIndex(x=>x.total===f.total)+1;
@@ -1148,7 +1177,7 @@ function renderLeaderboard(){
       if(d>0)move=`<span class="move-up">▲${d}</span>`;
       else if(d<0)move=`<span class="move-down">▼${-d}</span>`;
     }
-    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="move-cell">${move}</td><td class="name-cell">${esc(f.n)}</td><td class="sub-cell">${f.groupPts} pts</td><td class="sub-cell">${f.tp.pending?'–':f.tp.pts+' pts'}</td><td class="pts-cell">${f.total}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td></tr>`;
+    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="move-cell">${move}</td><td class="name-cell">${esc(f.n)}</td><td class="sub-cell">${f.groupPts} pts</td><td class="sub-cell">${f.tp.pending?'–':f.tp.pts+' pts'}</td><td class="sub-cell">${f.ko?f.ko+' pts':'–'}</td><td class="pts-cell">${f.total}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td></tr>`;
   });
   document.getElementById('leaderboard-body').innerHTML=html;
 }
@@ -1192,6 +1221,36 @@ function renderGroups(){
 
 function selectPred(name){selectedPred=name;renderPredictions();}
 
+// Knockout bracket of a participant's picks, styled like the Knockout tab.
+function renderKnockoutPred(name){
+  const legend=`R32 ${KO_SCORING.R32} · R16 ${KO_SCORING.R16} · QF ${KO_SCORING.QF} · SF ${KO_SCORING.SF} · Champion ${KO_SCORING.F}`;
+  const kp=KNOCKOUT_PREDS[name];
+  if(!kp){
+    return `<div class="kp-empty">Knockout bracket predictions open once the group stage ends and the Round of 32 is set.<br><span class="kp-legend">Points per correct pick — ${legend}.</span></div>`;
+  }
+  const R=KO_RESULTS||{};
+  const col=(title,picks,res)=>{
+    let h=`<div class="kb-round"><div class="kb-round-title">${esc(title)}</div>`;
+    picks.forEach((team,i)=>{
+      const actual=res&&res[i];
+      const cls=actual?(team===actual?'correct':'wrong'):'pending';
+      const vert=(i%2===0&&picks.length>1)?'<span class="kb-vert"></span>':'';
+      h+=`<div class="kb-cell"><div class="kp-pick ${cls}" title="${esc(team||'')}">${team?esc(team):'—'}</div>${vert}</div>`;
+    });
+    return h+'</div>';
+  };
+  const pts=scoreKnockout(name);
+  const maxPts=16*KO_SCORING.R32+8*KO_SCORING.R16+4*KO_SCORING.QF+2*KO_SCORING.SF+KO_SCORING.F;
+  let html=`<div class="kp-subtitle">${pts} pts so far · max ${maxPts}</div><div class="kb-scroll"><div class="kb">`;
+  html+=col('R32',kp.r32||[],R.r32);
+  html+=col('R16',kp.r16||[],R.r16);
+  html+=col('QF',kp.qf||[],R.qf);
+  html+=col('SF',kp.sf||[],R.sf);
+  html+=col('Champion',[kp.final||''],R.final?[R.final]:null);
+  html+=`</div></div>`;
+  return html;
+}
+
 function renderPredictions(){
   // Populate select (alphabetical)
   const sel=document.getElementById('pred-select');
@@ -1227,7 +1286,7 @@ function renderPredictions(){
   groupsHtml+='</div>';
   const thirdStatus=tp.pending?'pending':`${tp.correct.length}/8 correct = ${tp.pts} pts`;
   const thirdChips=picks.map(p=>{let cls='';if(!tp.pending){cls=tp.correct.includes(p)?'correct':'wrong';}return `<span class="chip ${cls}">${esc(p)}</span>`;}).join('');
-  card.innerHTML=`<div class="friend-card-header"><span class="friend-card-name">${esc(name)}</span><span class="friend-pts">${total} pts</span></div>${groupsHtml}<div class="third-section-title">3rd-place advance picks (${thirdStatus})</div><div class="chips-row">${thirdChips}</div>`;
+  card.innerHTML=`<div class="friend-card-header"><span class="friend-card-name">${esc(name)}</span><span class="friend-pts">${total} pts</span></div>${groupsHtml}<div class="third-section-title">3rd-place advance picks (${thirdStatus})</div><div class="chips-row">${thirdChips}</div><div class="third-section-title" style="margin-top:18px">🏟️ Knockout bracket predictions</div>${renderKnockoutPred(name)}`;
   el.appendChild(card);
 }
 
