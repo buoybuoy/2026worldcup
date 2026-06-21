@@ -152,6 +152,8 @@
   .move-down { color: #C0392B; }
   .move-flat { color: var(--text-secondary); }
   .leaderboard-table td.name-cell { font-weight: 500; }
+  .name-link { cursor: pointer; border-bottom: 1px dotted var(--text-secondary); }
+  .name-link:hover { color: var(--green); border-bottom-color: var(--green); }
   .leaderboard-table td.pts-cell { font-family: 'Teko', sans-serif; font-size: 24px; font-weight: 600; color: var(--green); text-align: right; white-space: nowrap; }
   .leaderboard-table td.sub-cell { text-align: center; font-size: 12px; color: var(--text-secondary); }
   .rank-1 td { background: #EAF3DE18; }
@@ -436,29 +438,6 @@
   </div>
 
   <div id="tab-leaderboard" class="tab-panel active">
-    <div class="scoring-key">
-      <div class="scoring-group">
-        <span class="scoring-group-label">Group stage</span>
-        <div class="scoring-chips">
-          <div class="scoring-chip">1st Place <strong>25</strong> pts</div>
-          <div class="scoring-chip">2nd Place <strong>15</strong> pts</div>
-          <div class="scoring-chip">3rd Place <strong>10</strong> pts</div>
-          <div class="scoring-chip">4th Place <strong>5</strong> pts</div>
-          <div class="scoring-chip">3rd Advances <strong>+5</strong> pts each</div>
-          <div class="scoring-chip">Perfect Group <strong>+10</strong> pts</div>
-        </div>
-      </div>
-      <div class="scoring-group">
-        <span class="scoring-group-label">Knockout · per correct pick</span>
-        <div class="scoring-chips">
-          <div class="scoring-chip ko">Round of 32 <strong>25</strong></div>
-          <div class="scoring-chip ko">Round of 16 <strong>50</strong></div>
-          <div class="scoring-chip ko">Quarterfinal <strong>100</strong></div>
-          <div class="scoring-chip ko">Semifinal <strong>200</strong></div>
-          <div class="scoring-chip ko">Final <strong>400</strong></div>
-        </div>
-      </div>
-    </div>
     <div id="last-updated-line" style="font-size:12px;color:var(--text-secondary);text-align:right;min-height:16px;"></div>
     <div id="last-game-line" style="font-size:12px;color:var(--text-secondary);text-align:right;margin-bottom:6px;min-height:16px;"></div>
     <div class="leaderboard-card">
@@ -1225,7 +1204,7 @@ function renderLeaderboard(){
       if(d>0)move=`<span class="move-up">▲${d}</span>`;
       else if(d<0)move=`<span class="move-down">▼${-d}</span>`;
     }
-    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="move-cell">${move}</td><td class="name-cell">${esc(f.n)}</td><td class="sub-cell">${f.groupPts+(f.tp.pending?0:f.tp.pts)} pts</td><td class="sub-cell">${f.ko?f.ko+' pts':'–'}</td><td class="pts-cell">${f.total}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td></tr>`;
+    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="move-cell">${move}</td><td class="name-cell"><span class="name-link" onclick="viewPred('${f.n.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">${esc(f.n)}</span></td><td class="sub-cell">${f.groupPts+(f.tp.pending?0:f.tp.pts)} pts</td><td class="sub-cell">${f.ko?f.ko+' pts':'–'}</td><td class="pts-cell">${f.total}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td></tr>`;
   });
   document.getElementById('leaderboard-body').innerHTML=html;
 }
@@ -1268,6 +1247,7 @@ function renderGroups(){
 }
 
 function selectPred(name){selectedPred=name;renderPredictions();}
+function viewPred(name){selectedPred=name;switchTab('predictions');renderPredictions();}
 
 // Knockout bracket of a participant's picks, styled like the Knockout tab.
 function renderKnockoutPred(name){
