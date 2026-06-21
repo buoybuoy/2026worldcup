@@ -1037,8 +1037,13 @@ function renderToday(){
         hFans.push({name,pos:hPos,drawOk:drawBest});
       } else if(awayBest&&!homeBest){
         aFans.push({name,pos:aPos,drawOk:drawBest});
+      } else if(homeBest&&awayBest){
+        // both wins tie as best → root for the team they predicted higher
+        // (a draw may also work, hence the drawOk note)
+        if(hPos<=aPos)hFans.push({name,pos:hPos,drawOk:drawBest});
+        else aFans.push({name,pos:aPos,drawOk:drawBest});
       } else {
-        // draw strictly best, or both wins equally good → put in the Draw column
+        // a draw is strictly their best outcome
         drawFans.push({name,hPos,aPos,hp,dp,rp,mx});
       }
     });
