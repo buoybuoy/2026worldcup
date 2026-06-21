@@ -348,6 +348,9 @@
   .kb-team-name.tbd { color: var(--text-secondary); font-weight: 500; font-size: 12px; }
   .kb-team.clinched .kb-team-name { color: var(--green-dark); }
   .kb-in { color: var(--green); font-weight: 700; font-size: 11px; }
+  .kb-team.kb-3rd { align-items: flex-start; }
+  .kb-3rd-list { font-size: 10px; line-height: 1.35; color: var(--text); }
+  .kb-3rd-tag { display: block; font-size: 9px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 1px; }
   .kb-seed { font-size: 11px; color: var(--text-secondary); flex-shrink: 0; font-family: 'Teko', sans-serif; }
   .kb-box-foot { font-size: 9px; color: var(--text-secondary); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* connectors */
@@ -486,7 +489,7 @@
   </div>
 
   <div id="tab-knockout" class="tab-panel">
-    <div class="info-banner">Full knockout bracket. Round-of-32 seeds (1A, 2B, 3rd) fill in live from current standings. A green <strong>✓</strong> next to a team means it has <strong>officially clinched</strong> a top-2 spot (mathematically through); others are current projections. Later rounds show "Winner [match #]" until teams are known. Scroll sideways to see the whole bracket.</div>
+    <div class="info-banner">Full knockout bracket. Round-of-32 seeds (1A, 2B, 3rd) fill in live from current standings. A green <strong>✓</strong> next to a team means it has <strong>officially clinched</strong> a top-2 spot (mathematically through); others are current projections. "3rd — one of" slots list the projected 3rd-place teams that could fill them (narrowing as groups finish). Later rounds show "Winner [match #]" until teams are known. Scroll sideways to see the whole bracket.</div>
     <div id="knockout-content"></div>
   </div>
 
@@ -1324,18 +1327,24 @@ function renderKnockout(){
   function r32Sides(slot){
     if(slot.type==='ru-ru')return[mk(st(slot.a)[1]&&st(slot.a)[1].name,'2'+slot.a),mk(st(slot.b)[1]&&st(slot.b)[1].name,'2'+slot.b)];
     if(slot.type==='w-ru')return[mk(st(slot.w)[0]&&st(slot.w)[0].name,'1'+slot.w),mk(st(slot.ru)[1]&&st(slot.ru)[1].name,'2'+slot.ru)];
-    // w-3rd
-    const cands=slot.pool.map(g=>({g,team:st(g)[2]&&st(g)[2].name})).filter(c=>c.team&&top8.includes(c.team));
-    const t2=cands.length===1?cands[0].team:'';
-    const poolTitle='3rd from groups '+slot.pool.join('/')+(cands.length?' · projected: '+cands.map(c=>c.team).join(' or '):' · none in top 8 yet');
-    return[mk(st(slot.w)[0]&&st(slot.w)[0].name,'1'+slot.w),Object.assign(mk(t2,'3rd'),{poolTitle,clinched:false})];
+    // w-3rd: list the pool's 3rd-place teams currently projected into the top 8
+    const cands=slot.pool.map(g=>st(g)[2]&&st(g)[2].name).filter(t=>t&&top8.includes(t));
+    const poolTitle='Eligible: best 3rd-place team from groups '+slot.pool.join('/')
+      +(cands.length?' · projected candidates: '+cands.join(', '):' · none in top 8 yet');
+    return[mk(st(slot.w)[0]&&st(slot.w)[0].name,'1'+slot.w),{seed:'3rd',poolTitle,cands}];
   }
 
   function teamRow(side){
+    const titleAttr=side.poolTitle?` title="${esc(side.poolTitle)}"`:'';
+    if(side.cands!==undefined){ // 3rd-place pool slot — show projected candidate team(s)
+      if(side.cands.length===1)
+        return `<div class="kb-team"><span class="kb-team-name"${titleAttr}>${esc(side.cands[0])}</span><span class="kb-seed">3rd</span></div>`;
+      const body=side.cands.length?side.cands.map(esc).join(' · '):'TBD';
+      return `<div class="kb-team kb-3rd"><span class="kb-3rd-list"${titleAttr}><span class="kb-3rd-tag">3rd — one of</span>${body}</span></div>`;
+    }
     const nm=side.name;
     const main=nm?esc(nm):esc(side.seed||'TBD');
     const sub=nm?esc(side.seed||''):'';
-    const titleAttr=side.poolTitle?` title="${esc(side.poolTitle)}"`:'';
     const inMark=side.clinched?' <span class="kb-in" title="Officially qualified">✓</span>':'';
     return `<div class="kb-team${side.clinched?' clinched':''}"><span class="kb-team-name${nm?'':' tbd'}"${titleAttr}>${main}${inMark}</span><span class="kb-seed">${sub}</span></div>`;
   }
