@@ -70,6 +70,14 @@
 
   .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem; }
 
+  .announce { display: flex; align-items: center; gap: 12px; background: var(--green); color: #fff; border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 18px; font-size: 14px; line-height: 1.5; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+  .announce-emoji { font-size: 20px; flex-shrink: 0; }
+  .announce-text { flex: 1; }
+  .announce-text strong { font-weight: 700; }
+  .announce-link { color: #fff; text-decoration: underline; font-weight: 700; white-space: nowrap; }
+  .announce-close { background: transparent; border: none; color: #fff; font-size: 22px; line-height: 1; cursor: pointer; flex-shrink: 0; opacity: 0.85; padding: 0 2px; }
+  .announce-close:hover { opacity: 1; }
+
   .tab-nav {
     display: flex;
     gap: 4px;
@@ -411,6 +419,11 @@
 </header>
 
 <div class="container">
+  <div id="announcement" class="announce">
+    <span class="announce-emoji">📣</span>
+    <div class="announce-text"><strong>Knockout bracket predictions are open!</strong> Sign up &amp; submit your Round-of-32 picks on ESPN — <a class="announce-link" href="https://fantasy.espn.com/free-prize-games/sharer?challengeId=284&amp;from=espn&amp;context=GROUP_INVITE&amp;edition=espn-en&amp;groupId=f9666b9e-b592-498a-88bc-d049948d2b92&amp;joinKey=f9741783-a4fb-323b-b02e-a534a9e03b45" target="_blank" rel="noopener noreferrer">join the bracket challenge ↗</a>. Bracket closes <strong>Sat June 28, 12:00 PM PST</strong>.</div>
+    <button class="announce-close" onclick="dismissAnnounce()" aria-label="Dismiss announcement">×</button>
+  </div>
   <div class="tab-nav">
     <button class="tab-btn active" onclick="switchTab('leaderboard')">🏆 Leaderboard</button>
     <button class="tab-btn" onclick="switchTab('today')">📅 Today</button>
@@ -1532,6 +1545,14 @@ function renderGoldenBoot(){
   });
   el.innerHTML=`<div class="gb-list">${rows}</div>`;
 }
+
+function dismissAnnounce(){const e=document.getElementById('announcement');if(e)e.style.display='none';try{localStorage.setItem('annKO2026','1');}catch(_){}}
+(function(){
+  const el=document.getElementById('announcement');if(!el)return;
+  const todayPT=new Date().toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'});
+  let dismissed=false;try{dismissed=!!localStorage.getItem('annKO2026');}catch(_){}
+  if(dismissed||todayPT>'2026-06-28')el.style.display='none'; // auto-hide after the deadline
+})();
 
 renderAll();
 fetchLiveScores();
