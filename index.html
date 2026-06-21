@@ -312,6 +312,8 @@
   .schedule-match-row.played { border-left: 3px solid var(--green); }
   .sched-time { font-family: 'Teko', sans-serif; font-size: 16px; font-weight: 600; color: var(--text-secondary); width: 68px; flex-shrink: 0; }
   .sched-group { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 7px; border-radius: 4px; background: var(--bg-secondary); color: var(--text-secondary); flex-shrink: 0; width: 32px; text-align: center; }
+  .sched-group.sched-ko { width: auto; min-width: 32px; background: #E3ECFB; color: #2C5CAB; }
+  .ko-row .sched-team { color: var(--text-secondary); font-weight: 500; }
   .sched-teams { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
   .sched-team { font-size: 13px; font-weight: 500; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sched-team.right { text-align: right; }
@@ -833,15 +835,23 @@ function toggleSchedDay(d,open){scheduleToggled[d]=open;}
 function renderSchedule(){
   const el=document.getElementById('schedule-content');el.innerHTML='';
 
-  // Collect all matches that have a scheduled date
+  // Collect group matches + knockout fixtures
   const allMatches=[];
   Object.keys(MATCHES).forEach(g=>{
     MATCHES[g].forEach(([h,a])=>{
       const key=g+'|'+h+'|'+a;
       const date=SCHEDULE[key];
-      if(date)allMatches.push({g,h,a,key,date,time:MATCH_TIMES[key]||'23:59'});
+      if(date)allMatches.push({type:'group',g,h,a,key,date,time:MATCH_TIMES[key]||'23:59'});
     });
   });
+  const r32seed=slot=>slot.type==='ru-ru'?['Runner-up '+slot.a,'Runner-up '+slot.b]
+    :slot.type==='w-ru'?['Winner '+slot.w,'Runner-up '+slot.ru]
+    :['Winner '+slot.w,'3rd place'];
+  KNOCKOUT_R32.forEach(m=>{const[s1,s2]=r32seed(m.slot);allMatches.push({type:'ko',rb:'R32',round:'Round of 32',date:m.date,time:m.time,venue:m.venue,city:m.city,s1,s2});});
+  [['R16','Round of 16'],['QF','Quarterfinal'],['SF','Semifinal'],['F','Final']].forEach(([k,full])=>{
+    (KNOCKOUT_LATER[k]||[]).forEach(m=>allMatches.push({type:'ko',rb:k==='F'?'Final':k,round:full,date:m.date,time:m.time,venue:m.venue,city:m.city,s1:'Winner M'+m.f[0],s2:'Winner M'+m.f[1]}));
+  });
+  {const tp=KNOCKOUT_LATER.THIRD;allMatches.push({type:'ko',rb:'3rd',round:'Third-place play-off',date:tp.date,time:tp.time,venue:tp.venue,city:tp.city,s1:'Loser M'+tp.f[0],s2:'Loser M'+tp.f[1]});}
   allMatches.sort((a,b)=>a.date!==b.date?a.date.localeCompare(b.date):a.time.localeCompare(b.time));
 
   // Group by date
@@ -850,23 +860,32 @@ function renderSchedule(){
 
   const todayStr=new Date().toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'});
   const dayLabelFor=date=>new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
-  const rowsFor=dayMatches=>dayMatches.map(({g,h,a,key,time})=>{
-    const sc=scores[key];
+  const fmtTime=time=>{const[hr,mn]=time.split(':').map(Number);const ap=hr>=12?'PM':'AM';const h12=hr%12||12;return `${h12}:${mn.toString().padStart(2,'0')} ${ap}`;};
+  const rowsFor=dayMatches=>dayMatches.map(m=>{
+    const timeStr=fmtTime(m.time);
+    if(m.type==='ko'){
+      return `<div class="schedule-match-row ko-row" title="${esc(m.round+' · '+m.venue+', '+m.city)}">
+        <span class="sched-time">${timeStr}</span>
+        <span class="sched-group sched-ko">${m.rb}</span>
+        <div class="sched-teams">
+          <span class="sched-team">${esc(m.s1)}</span>
+          <span class="sched-vs">vs</span>
+          <span class="sched-team right">${esc(m.s2)}</span>
+        </div>
+      </div>`;
+    }
+    const sc=scores[m.key];
     const hasScore=sc&&sc[0]!==''&&sc[1]!=='';
-    const [hr,mn]=time.split(':').map(Number);
-    const ap=hr>=12?'PM':'AM';
-    const h12=hr%12||12;
-    const timeStr=`${h12}:${mn.toString().padStart(2,'0')} ${ap}`;
     const scoreDisplay=hasScore
       ?`<span class="sched-score">${sc[0]}–${sc[1]}</span>`
       :`<span class="sched-vs">vs</span>`;
     return `<div class="schedule-match-row${hasScore?' played':''}">
       <span class="sched-time">${timeStr}</span>
-      <span class="sched-group">${g}</span>
+      <span class="sched-group">${m.g}</span>
       <div class="sched-teams">
-        <span class="sched-team">${esc(h)}</span>
+        <span class="sched-team">${esc(m.h)}</span>
         ${scoreDisplay}
-        <span class="sched-team right">${esc(a)}</span>
+        <span class="sched-team right">${esc(m.a)}</span>
       </div>
     </div>`;
   }).join('');
