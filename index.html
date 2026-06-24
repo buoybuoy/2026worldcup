@@ -1349,7 +1349,6 @@ function renderPredictions(){
       groupsHtml+='</div>';
     });
     if(result&&result.perfect){
-      groupsHtml+='<div class="pred-pos-row"><span class="pos-label">⭐</span><span class="chip correct">Perfect</span><span class="pts-earned">+10</span></div>';
       groupsHtml+='<span class="perfect-badge">⭐ Perfect group +10</span>';
     } else if(result&&result.allCorrect&&played>0){
       groupsHtml+='<span class="perfect-badge" style="opacity:0.6">⭐ On track for +10</span>';
