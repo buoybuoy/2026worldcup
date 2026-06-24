@@ -846,9 +846,13 @@ function renderSchedule(){
       if(date)allMatches.push({type:'group',g,h,a,key,date,time:MATCH_TIMES[key]||'23:59'});
     });
   });
-  const r32seed=slot=>slot.type==='ru-ru'?['Runner-up '+slot.a,'Runner-up '+slot.b]
-    :slot.type==='w-ru'?['Winner '+slot.w,'Runner-up '+slot.ru]
-    :['Winner '+slot.w,'3rd place'];
+  // R32 seeds resolve to the actual qualifier once a group is complete (1st/2nd
+  // are then locked); until then show the seed placeholder. 3rd-place slots stay
+  // as placeholders since they depend on the final global 3rd-place ranking.
+  const seedName=(g,pos,label)=>groupComplete(g)?calcStandings(g)[pos].name:label;
+  const r32seed=slot=>slot.type==='ru-ru'?[seedName(slot.a,1,'Runner-up '+slot.a),seedName(slot.b,1,'Runner-up '+slot.b)]
+    :slot.type==='w-ru'?[seedName(slot.w,0,'Winner '+slot.w),seedName(slot.ru,1,'Runner-up '+slot.ru)]
+    :[seedName(slot.w,0,'Winner '+slot.w),'3rd place'];
   KNOCKOUT_R32.forEach(m=>{const[s1,s2]=r32seed(m.slot);allMatches.push({type:'ko',rb:'R32',round:'Round of 32',date:m.date,time:m.time,venue:m.venue,city:m.city,s1,s2});});
   [['R16','Round of 16'],['QF','Quarterfinal'],['SF','Semifinal'],['F','Final']].forEach(([k,full])=>{
     (KNOCKOUT_LATER[k]||[]).forEach(m=>allMatches.push({type:'ko',rb:k==='F'?'Final':k,round:full,date:m.date,time:m.time,venue:m.venue,city:m.city,s1:'Winner M'+m.f[0],s2:'Winner M'+m.f[1]}));
