@@ -214,6 +214,9 @@
   .chip { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 4px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text); }
   .chip.correct { background: var(--green-light); color: var(--green-dark); border-color: #c3dda0; }
   .chip.wrong { background: var(--red-light); color: var(--red-dark); border-color: #f0b8b8; }
+  .chip.actual { background: var(--bg-card); color: var(--green-dark); border-color: var(--green); }
+  .chip-arrow { font-size: 11px; color: var(--text-secondary); }
+  .grp-final { color: var(--green); font-weight: 600; margin-left: 5px; text-transform: none; letter-spacing: 0; }
   .perfect-badge { display: inline-block; font-size: 10px; background: var(--gold); color: var(--gold-dark); border-radius: 4px; padding: 1px 7px; font-weight: 600; margin-top: 4px; }
   .third-section-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-secondary); margin-bottom: 6px; }
   /* knockout bracket predictions */
@@ -222,6 +225,10 @@
   .kp-pick.correct { border-color: var(--green); background: var(--green-light); color: var(--green-dark); }
   .kp-pick.wrong { border-color: #e3b4ad; background: #f7e4e1; color: #9B2D1F; }
   .kp-pick.inline { display: inline-block; width: auto; padding: 3px 12px; }
+  .kp-pick.revealed { white-space: normal; display: flex; flex-direction: column; gap: 1px; line-height: 1.2; }
+  .kp-miss { font-size: 10px; font-weight: 500; opacity: 0.75; }
+  .kp-actual { color: var(--green-dark); }
+  .third-actual-label { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); margin: 8px 0 4px; }
   .kp-extra { margin-top: 14px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .kp-empty { background: var(--bg-secondary); border: 1px solid var(--border); border-left: 3px solid var(--green); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 12px 14px; font-size: 13px; color: var(--text-secondary); line-height: 1.7; }
   .kp-legend { color: var(--text); font-weight: 500; }
@@ -1290,7 +1297,12 @@ function renderKnockoutPred(name){
       const actual=res&&res[i];
       const cls=actual?(team===actual?'correct':'wrong'):'pending';
       const vert=(i%2===0&&picks.length>1)?'<span class="kb-vert"></span>':'';
-      h+=`<div class="kb-cell"><div class="kp-pick ${cls}" title="${esc(team||'')}">${team?esc(team):'—'}</div>${vert}</div>`;
+      // Once this slot's result is in, strike a wrong pick and reveal who advanced.
+      const reveal=actual&&team&&team!==actual;
+      const inner=reveal
+        ?`<span class="kp-miss"><s>${esc(team)}</s></span><span class="kp-actual">${esc(actual)}</span>`
+        :(team?esc(team):'—');
+      h+=`<div class="kb-cell"><div class="kp-pick ${cls}${reveal?' revealed':''}" title="${esc(team||'')}">${inner}</div>${vert}</div>`;
     });
     return h+'</div>';
   };
@@ -1320,14 +1332,20 @@ function renderPredictions(){
   let groupsHtml='<div class="pred-groups-grid">';
   Object.keys(GROUPS).forEach(g=>{
     const pred=FRIENDS_PREDS[name]&&FRIENDS_PREDS[name][g];if(!pred)return;
-    const result=scoreGroup(name,g);const played=gamesPlayed(g);
+    const result=scoreGroup(name,g);const played=gamesPlayed(g);const complete=groupComplete(g);
     const starLabel=result&&result.allCorrect&&played>0?' ⭐':'';
-    groupsHtml+=`<div class="pred-group-block"><div class="pred-group-label"><span>Group ${g}</span><span class="pred-group-pts">${result?result.pts:0}pts${starLabel}</span></div>`;
+    const finalBadge=complete?'<span class="grp-final">✓ Final</span>':'';
+    groupsHtml+=`<div class="pred-group-block"><div class="pred-group-label"><span>Group ${g}${finalBadge}</span><span class="pred-group-pts">${result?result.pts:0}pts${starLabel}</span></div>`;
     [0,1,2,3].forEach(pos=>{
       const pt=pred[pos];if(!pt)return;
       let cls='';
       if(result&&played>0){cls=result.st[pos]&&result.st[pos].name===pt?'correct':'wrong';}
-      groupsHtml+=`<div class="pred-pos-row"><span class="pos-label">${['1st','2nd','3rd','4th'][pos]}</span><span class="chip ${cls}">${esc(pt)}</span>${cls==='correct'?`<span class="pts-earned">+${POS_PTS[pos]}</span>`:''}`;
+      const actual=result&&result.st[pos]?result.st[pos].name:null;
+      // Once the group is final, strike a wrong pick and show who actually finished there.
+      const chip=(cls==='wrong'&&complete&&actual)
+        ?`<span class="chip wrong"><s>${esc(pt)}</s></span><span class="chip-arrow">→</span><span class="chip actual">${esc(actual)}</span>`
+        :`<span class="chip ${cls}">${esc(pt)}</span>`;
+      groupsHtml+=`<div class="pred-pos-row"><span class="pos-label">${['1st','2nd','3rd','4th'][pos]}</span>${chip}${cls==='correct'?`<span class="pts-earned">+${POS_PTS[pos]}</span>`:''}`;
       groupsHtml+='</div>';
     });
     if(result&&result.perfect){
@@ -1339,9 +1357,23 @@ function renderPredictions(){
     groupsHtml+='</div>';
   });
   groupsHtml+='</div>';
-  const thirdStatus=tp.pending?'pending':`${tp.correct.length}/8 correct = ${tp.pts} pts`;
-  const thirdChips=picks.map(p=>{let cls='';if(!tp.pending){cls=tp.correct.includes(p)?'correct':'wrong';}return `<span class="chip ${cls}">${esc(p)}</span>`;}).join('');
-  card.innerHTML=`<div class="friend-card-header"><span class="friend-card-name">${esc(name)}</span><span class="friend-pts">${total} pts</span></div>${groupsHtml}<div class="third-section-title">3rd-place advance picks (${thirdStatus})</div><div class="chips-row">${thirdChips}</div><div class="third-section-title" style="margin-top:18px">🏟️ Knockout bracket predictions</div>${renderKnockoutPred(name)}`;
+  // The 3rd-place race is only final once every group has finished its matches.
+  const thirdFinal=Object.keys(GROUPS).every(groupComplete);
+  const thirdStatus=tp.pending?'pending':`${tp.correct.length}/8 correct = ${tp.pts} pts${thirdFinal?' · Final':''}`;
+  const thirdChips=picks.map(p=>{
+    if(tp.pending)return `<span class="chip">${esc(p)}</span>`;
+    const correct=tp.correct.includes(p);
+    // Once final, strike a pick that didn't advance.
+    if(!correct&&thirdFinal)return `<span class="chip wrong"><s>${esc(p)}</s></span>`;
+    return `<span class="chip ${correct?'correct':'wrong'}">${esc(p)}</span>`;
+  }).join('');
+  // Reveal which teams actually advanced that this person missed.
+  let thirdReveal='';
+  if(thirdFinal){
+    const missed=adv.filter(t=>!picks.includes(t));
+    if(missed.length)thirdReveal=`<div class="third-actual-label">Advanced (missed)</div><div class="chips-row">${missed.map(t=>`<span class="chip actual">${esc(t)}</span>`).join('')}</div>`;
+  }
+  card.innerHTML=`<div class="friend-card-header"><span class="friend-card-name">${esc(name)}</span><span class="friend-pts">${total} pts</span></div>${groupsHtml}<div class="third-section-title">3rd-place advance picks (${thirdStatus})</div><div class="chips-row">${thirdChips}</div>${thirdReveal}<div class="third-section-title" style="margin-top:18px">🏟️ Knockout bracket predictions</div>${renderKnockoutPred(name)}`;
   el.appendChild(card);
 }
 
