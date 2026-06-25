@@ -384,7 +384,11 @@
   .kb-in { color: var(--green); font-weight: 700; font-size: 11px; }
   .kb-team.kb-3rd { align-items: flex-start; }
   .kb-3rd-list { font-size: 10px; line-height: 1.35; color: var(--text); }
-  .kb-3rd-tag { display: block; font-size: 9px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 1px; }
+  .kb-3rd-tag { display: block; font-size: 9px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; }
+  .kb-odd { display: flex; justify-content: space-between; gap: 8px; line-height: 1.5; }
+  .kb-odd-nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kb-odd-g { color: var(--text-secondary); font-size: 9px; }
+  .kb-odd-pct { color: var(--green-dark); font-weight: 600; font-variant-numeric: tabular-nums; flex-shrink: 0; }
   .kb-seed { font-size: 11px; color: var(--text-secondary); flex-shrink: 0; font-family: 'Teko', sans-serif; }
   .kb-box-foot { font-size: 9px; color: var(--text-secondary); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* connectors */
@@ -534,7 +538,7 @@
   </div>
 
   <div id="tab-knockout" class="tab-panel">
-    <div class="info-banner">Full knockout bracket. Round-of-32 seeds (1A, 2B, 3rd) fill in live from current standings. A green <strong>✓</strong> next to a team means it has <strong>officially clinched</strong> a top-2 spot (mathematically through); others are current projections. "3rd — one of" slots list the projected 3rd-place teams that could fill them (narrowing as groups finish). Later rounds show "Winner [match #]" until teams are known. Scroll sideways to see the whole bracket.</div>
+    <div class="info-banner">Full knockout bracket. Round-of-32 seeds (1A, 2B, 3rd) fill in live from current standings. A green <strong>✓</strong> next to a team means it has <strong>officially clinched</strong> a top-2 spot (mathematically through); others are current projections. Each "Winner vs best-3rd" slot shows <strong>3rd-place odds</strong> — the simulated chance that each eligible group's third-placer is the one routed into that match (via FIFA's official allocation table). Odds come from a Monte Carlo of the remaining group games using team-strength ratings nudged by results so far, so they shift as the tournament progresses (our model, not betting lines). Later rounds show "Winner [match #]" until teams are known. Scroll sideways to see the whole bracket.</div>
     <div id="knockout-content"></div>
   </div>
 
@@ -1459,9 +1463,60 @@ function mathEliminated(team){
   return true;
 }
 
+// ===== 3rd-place placement odds (Monte Carlo) =========================
+// FIFA Annex C allocation table: which group's 3rd-placer fills each
+// "Winner vs best-3rd" R32 slot, keyed by the FOUR groups whose thirds do NOT
+// advance → an assignment string in winner-slot order [1A,1B,1D,1E,1G,1I,1K,1L]
+// (matches 79,85,81,74,82,77,87,80). Parsed from the official 495-row table.
+const THIRD_SLOT_MAP={ABCD:"EJIFHGLK",ABCE:"HGIDJFLK",ABCF:"EJIDHGLK",ABCG:"EJIDHFLK",ABCH:"EGIDJFLK",ABCI:"EGJDHFLK",ABCJ:"EGIDHFLK",ABCK:"EGJDHFLI",ABCL:"EGJDHFIK",ABDE:"HGICJFLK",ABDF:"EJICHGLK",ABDG:"EJICHFLK",ABDH:"EGICJFLK",ABDI:"EGJCHFLK",ABDJ:"EGICHFLK",ABDK:"EGJCHFLI",ABDL:"EGJCHFIK",ABEF:"HGICJDLK",ABEG:"CJIDHFLK",ABEH:"CGIDJFLK",ABEI:"CGJDHFLK",ABEJ:"CGIDHFLK",ABEK:"CGJDHFLI",ABEL:"CGJDHFIK",ABFG:"EJICHDLK",ABFH:"EGICJDLK",ABFI:"EGJCHDLK",ABFJ:"EGICHDLK",ABFK:"EGJCHDLI",ABFL:"EGJCHDIK",ABGH:"CJEDIFLK",ABGI:"CJEDHFLK",ABGJ:"CEIDHFLK",ABGK:"CJEDHFLI",ABGL:"CJEDHFIK",ABHI:"CGEDJFLK",ABHJ:"CGEDIFLK",ABHK:"CGEDJFLI",ABHL:"CGEDJFIK",ABIJ:"CGEDHFLK",ABIK:"CGJDHFLE",ABIL:"CGJDHFEK",ABJK:"CGEDHFLI",ABJL:"CGEDHFIK",ABKL:"CGJDHFEI",ACDE:"HJBFIGLK",ACDF:"EJIBHGLK",ACDG:"EJBFIHLK",ACDH:"EJBFIGLK",ACDI:"EJBFHGLK",ACDJ:"EGBFIHLK",ACDK:"EJBFHGLI",ACDL:"EJBFHGIK",ACEF:"HJBDIGLK",ACEG:"HJBDIFLK",ACEH:"IGBDJFLK",ACEI:"HGBDJFLK",ACEJ:"HGBDIFLK",ACEK:"HGBDJFLI",ACEL:"HGBDJFIK",ACFG:"EJBDIHLK",ACFH:"EJBDIGLK",ACFI:"EJBDHGLK",ACFJ:"EGBDIHLK",ACFK:"EJBDHGLI",ACFL:"EJBDHGIK",ACGH:"EJBDIFLK",ACGI:"EJBDHFLK",ACGJ:"EIBDHFLK",ACGK:"EJBDHFLI",ACGL:"EJBDHFIK",ACHI:"EGBDJFLK",ACHJ:"EGBDIFLK",ACHK:"EGBDJFLI",ACHL:"EGBDJFIK",ACIJ:"EGBDHFLK",ACIK:"HGBDJFLE",ACIL:"HGBDJFEK",ACJK:"EGBDHFLI",ACJL:"EGBDHFIK",ACKL:"HGBDJFEI",ADEF:"HJBCIGLK",ADEG:"HJBCIFLK",ADEH:"IGBCJFLK",ADEI:"HGBCJFLK",ADEJ:"HGBCIFLK",ADEK:"HGBCJFLI",ADEL:"HGBCJFIK",ADFG:"EJBCIHLK",ADFH:"EJBCIGLK",ADFI:"EJBCHGLK",ADFJ:"EGBCIHLK",ADFK:"EJBCHGLI",ADFL:"EJBCHGIK",ADGH:"EJBCIFLK",ADGI:"EJBCHFLK",ADGJ:"EIBCHFLK",ADGK:"EJBCHFLI",ADGL:"EJBCHFIK",ADHI:"EGBCJFLK",ADHJ:"EGBCIFLK",ADHK:"EGBCJFLI",ADHL:"EGBCJFIK",ADIJ:"EGBCHFLK",ADIK:"HGBCJFLE",ADIL:"HGBCJFEK",ADJK:"EGBCHFLI",ADJL:"EGBCHFIK",ADKL:"HGBCJFEI",AEFG:"HJBCIDLK",AEFH:"IGBCJDLK",AEFI:"HGBCJDLK",AEFJ:"HGBCIDLK",AEFK:"HGBCJDLI",AEFL:"HGBCJDIK",AEGH:"CJBDIFLK",AEGI:"CJBDHFLK",AEGJ:"CIBDHFLK",AEGK:"CJBDHFLI",AEGL:"CJBDHFIK",AEHI:"CGBDJFLK",AEHJ:"CGBDIFLK",AEHK:"CGBDJFLI",AEHL:"CGBDJFIK",AEIJ:"CGBDHFLK",AEIK:"CGBDHFLJ",AEIL:"HGBCJFDK",AEJK:"CGBDHFLI",AEJL:"CGBDHFIK",AEKL:"HGBCJFDI",AFGH:"EJBCIDLK",AFGI:"EJBCHDLK",AFGJ:"EIBCHDLK",AFGK:"EJBCHDLI",AFGL:"EJBCHDIK",AFHI:"EGBCJDLK",AFHJ:"EGBCIDLK",AFHK:"EGBCJDLI",AFHL:"EGBCJDIK",AFIJ:"EGBCHDLK",AFIK:"HGBCJDLE",AFIL:"HGBCJDEK",AFJK:"EGBCHDLI",AFJL:"EGBCHDIK",AFKL:"HGBCJDEI",AGHI:"CJBDEFLK",AGHJ:"CEBDIFLK",AGHK:"CJBDEFLI",AGHL:"CJBDEFIK",AGIJ:"CEBDHFLK",AGIK:"CJBDHFLE",AGIL:"CJBDHFEK",AGJK:"CEBDHFLI",AGJL:"CEBDHFIK",AGKL:"CJBDHFEI",AHIJ:"CGBDEFLK",AHIK:"CGBDJFLE",AHIL:"CGBDJFEK",AHJK:"CGBDEFLI",AHJL:"CGBDEFIK",AHKL:"CGBDJFEI",AIJK:"CGBDHFLE",AIJL:"CGBDHFEK",AIKL:"HGBCJFDE",AJKL:"CGBDHFEI",BCDE:"HJIFAGLK",BCDF:"EJIAHGLK",BCDG:"EJIFAHLK",BCDH:"EJIFAGLK",BCDI:"EGJFAHLK",BCDJ:"EGIFAHLK",BCDK:"EGJFAHLI",BCDL:"EGJFAHIK",BCEF:"HJIDAGLK",BCEG:"HJIDAFLK",BCEH:"IGJDAFLK",BCEI:"HGJDAFLK",BCEJ:"HGIDAFLK",BCEK:"HGJDAFLI",BCEL:"HGJDAFIK",BCFG:"EJIDAHLK",BCFH:"EJIDAGLK",BCFI:"EGJDAHLK",BCFJ:"EGIDAHLK",BCFK:"EGJDAHLI",BCFL:"EGJDAHIK",BCGH:"EJIDAFLK",BCGI:"HJEDAFLK",BCGJ:"HEIDAFLK",BCGK:"HJEDAFLI",BCGL:"HJEDAFIK",BCHI:"EGJDAFLK",BCHJ:"EGIDAFLK",BCHK:"EGJDAFLI",BCHL:"EGJDAFIK",BCIJ:"HGEDAFLK",BCIK:"HGJDAFLE",BCIL:"HGJDAFEK",BCJK:"HGEDAFLI",BCJL:"HGEDAFIK",BCKL:"HGJDAFEI",BDEF:"HJICAGLK",BDEG:"HJICAFLK",BDEH:"IGJCAFLK",BDEI:"HGJCAFLK",BDEJ:"HGICAFLK",BDEK:"HGJCAFLI",BDEL:"HGJCAFIK",BDFG:"EJICAHLK",BDFH:"EJICAGLK",BDFI:"EGJCAHLK",BDFJ:"EGICAHLK",BDFK:"EGJCAHLI",BDFL:"EGJCAHIK",BDGH:"EJICAFLK",BDGI:"HJECAFLK",BDGJ:"HEICAFLK",BDGK:"HJECAFLI",BDGL:"HJECAFIK",BDHI:"EGJCAFLK",BDHJ:"EGICAFLK",BDHK:"EGJCAFLI",BDHL:"EGJCAFIK",BDIJ:"HGECAFLK",BDIK:"HGJCAFLE",BDIL:"HGJCAFEK",BDJK:"HGECAFLI",BDJL:"HGECAFIK",BDKL:"HGJCAFEI",BEFG:"HJICADLK",BEFH:"IGJCADLK",BEFI:"HGJCADLK",BEFJ:"HGICADLK",BEFK:"HGJCADLI",BEFL:"HGJCADIK",BEGH:"CJIDAFLK",BEGI:"HJFCADLK",BEGJ:"HFICADLK",BEGK:"HJFCADLI",BEGL:"HJFCADIK",BEHI:"CGJDAFLK",BEHJ:"CGIDAFLK",BEHK:"CGJDAFLI",BEHL:"CGJDAFIK",BEIJ:"HGFCADLK",BEIK:"CGJDAFLH",BEIL:"HGJCAFDK",BEJK:"HGFCADLI",BEJL:"HGFCADIK",BEKL:"HGJCAFDI",BFGH:"EJICADLK",BFGI:"HJECADLK",BFGJ:"HEICADLK",BFGK:"HJECADLI",BFGL:"HJECADIK",BFHI:"EGJCADLK",BFHJ:"EGICADLK",BFHK:"EGJCADLI",BFHL:"EGJCADIK",BFIJ:"HGECADLK",BFIK:"HGJCADLE",BFIL:"HGJCADEK",BFJK:"HGECADLI",BFJL:"HGECADIK",BFKL:"HGJCADEI",BGHI:"CJEDAFLK",BGHJ:"CEIDAFLK",BGHK:"CJEDAFLI",BGHL:"CJEDAFIK",BGIJ:"HEFCADLK",BGIK:"HJFCADLE",BGIL:"HJECAFDK",BGJK:"HEFCADLI",BGJL:"HEFCADIK",BGKL:"HJECAFDI",BHIJ:"CGEDAFLK",BHIK:"CGJDAFLE",BHIL:"CGJDAFEK",BHJK:"CGEDAFLI",BHJL:"CGEDAFIK",BHKL:"CGJDAFEI",BIJK:"HGFCADLE",BIJL:"HGECAFDK",BIKL:"HGJCAFDE",BJKL:"HGECAFDI",CDEF:"HJBAIGLK",CDEG:"HJBAIFLK",CDEH:"IJBFAGLK",CDEI:"HJBFAGLK",CDEJ:"HGBAIFLK",CDEK:"HJBFAGLI",CDEL:"HJBFAGIK",CDFG:"EJBAIHLK",CDFH:"EJBAIGLK",CDFI:"EJBAHGLK",CDFJ:"EGBAIHLK",CDFK:"EJBAHGLI",CDFL:"EJBAHGIK",CDGH:"EJBAIFLK",CDGI:"EJBFAHLK",CDGJ:"EIBFAHLK",CDGK:"EJBFAHLI",CDGL:"EJBFAHIK",CDHI:"EJBFAGLK",CDHJ:"EGBAIFLK",CDHK:"EJBFAGLI",CDHL:"EJBFAGIK",CDIJ:"EGBFAHLK",CDIK:"HJBFAGLE",CDIL:"HJBFAGEK",CDJK:"EGBFAHLI",CDJL:"EGBFAHIK",CDKL:"HJBFAGEI",CEFG:"IJBDAHLK",CEFH:"IJBDAGLK",CEFI:"HJBDAGLK",CEFJ:"IGBDAHLK",CEFK:"HJBDAGLI",CEFL:"HJBDAGIK",CEGH:"IJBDAFLK",CEGI:"HJBDAFLK",CEGJ:"HIBDAFLK",CEGK:"HJBDAFLI",CEGL:"HJBDAFIK",CEHI:"FJBDAGLK",CEHJ:"IGBDAFLK",CEHK:"FJBDAGLI",CEHL:"FJBDAGIK",CEIJ:"HGBDAFLK",CEIK:"HGBDAFLJ",CEIL:"HGBDAFJK",CEJK:"HGBDAFLI",CEJL:"HGBDAFIK",CEKL:"HGBDAFIJ",CFGH:"EJBAIDLK",CFGI:"EJBDAHLK",CFGJ:"EIBDAHLK",CFGK:"EJBDAHLI",CFGL:"EJBDAHIK",CFHI:"EJBDAGLK",CFHJ:"EGBAIDLK",CFHK:"EJBDAGLI",CFHL:"EJBDAGIK",CFIJ:"EGBDAHLK",CFIK:"HJBDAGLE",CFIL:"HJBDAGEK",CFJK:"EGBDAHLI",CFJL:"EGBDAHIK",CFKL:"HJBDAGEI",CGHI:"EJBDAFLK",CGHJ:"EIBDAFLK",CGHK:"EJBDAFLI",CGHL:"EJBDAFIK",CGIJ:"HEBDAFLK",CGIK:"HJBDAFLE",CGIL:"HJBDAFEK",CGJK:"HEBDAFLI",CGJL:"HEBDAFIK",CGKL:"HJBDAFEI",CHIJ:"EGBDAFLK",CHIK:"EGBDAFLJ",CHIL:"EGBDAFJK",CHJK:"EGBDAFLI",CHJL:"EGBDAFIK",CHKL:"EGBDAFIJ",CIJK:"HGBDAFLE",CIJL:"HGBDAFEK",CIKL:"HGBDAFEJ",CJKL:"HGBDAFEI",DEFG:"IJBCAHLK",DEFH:"IJBCAGLK",DEFI:"HJBCAGLK",DEFJ:"IGBCAHLK",DEFK:"HJBCAGLI",DEFL:"HJBCAGIK",DEGH:"IJBCAFLK",DEGI:"HJBCAFLK",DEGJ:"HIBCAFLK",DEGK:"HJBCAFLI",DEGL:"HJBCAFIK",DEHI:"CJBFAGLK",DEHJ:"IGBCAFLK",DEHK:"CJBFAGLI",DEHL:"CJBFAGIK",DEIJ:"HGBCAFLK",DEIK:"HGBCAFLJ",DEIL:"HGBCAFJK",DEJK:"HGBCAFLI",DEJL:"HGBCAFIK",DEKL:"HGBCAFIJ",DFGH:"EJBAICLK",DFGI:"EJBCAHLK",DFGJ:"EIBCAHLK",DFGK:"EJBCAHLI",DFGL:"EJBCAHIK",DFHI:"EJBCAGLK",DFHJ:"EGBAICLK",DFHK:"EJBCAGLI",DFHL:"EJBCAGIK",DFIJ:"EGBCAHLK",DFIK:"HJBCAGLE",DFIL:"HJBCAGEK",DFJK:"EGBCAHLI",DFJL:"EGBCAHIK",DFKL:"HJBCAGEI",DGHI:"EJBCAFLK",DGHJ:"EIBCAFLK",DGHK:"EJBCAFLI",DGHL:"EJBCAFIK",DGIJ:"HEBCAFLK",DGIK:"HJBCAFLE",DGIL:"HJBCAFEK",DGJK:"HEBCAFLI",DGJL:"HEBCAFIK",DGKL:"HJBCAFEI",DHIJ:"EGBCAFLK",DHIK:"EGBCAFLJ",DHIL:"EGBCAFJK",DHJK:"EGBCAFLI",DHJL:"EGBCAFIK",DHKL:"EGBCAFIJ",DIJK:"HGBCAFLE",DIJL:"HGBCAFEK",DIKL:"HGBCAFEJ",DJKL:"HGBCAFEI",EFGH:"IJBCADLK",EFGI:"HJBCADLK",EFGJ:"HIBCADLK",EFGK:"HJBCADLI",EFGL:"HJBCADIK",EFHI:"CJBDAGLK",EFHJ:"IGBCADLK",EFHK:"CJBDAGLI",EFHL:"CJBDAGIK",EFIJ:"HGBCADLK",EFIK:"HGBCADLJ",EFIL:"HGBCADJK",EFJK:"HGBCADLI",EFJL:"HGBCADIK",EFKL:"HGBCADIJ",EGHI:"CJBDAFLK",EGHJ:"CIBDAFLK",EGHK:"CJBDAFLI",EGHL:"CJBDAFIK",EGIJ:"HFBCADLK",EGIK:"CJBDAFLH",EGIL:"HJBCAFDK",EGJK:"HFBCADLI",EGJL:"HFBCADIK",EGKL:"HJBCAFDI",EHIJ:"CGBDAFLK",EHIK:"CGBDAFLJ",EHIL:"CGBDAFJK",EHJK:"CGBDAFLI",EHJL:"CGBDAFIK",EHKL:"CGBDAFIJ",EIJK:"CGBDAFLH",EIJL:"HGBCAFDK",EIKL:"HGBCAFDJ",EJKL:"HGBCAFDI",FGHI:"EJBCADLK",FGHJ:"EIBCADLK",FGHK:"EJBCADLI",FGHL:"EJBCADIK",FGIJ:"HEBCADLK",FGIK:"HJBCADLE",FGIL:"HJBCADEK",FGJK:"HEBCADLI",FGJL:"HEBCADIK",FGKL:"HJBCADEI",FHIJ:"EGBCADLK",FHIK:"EGBCADLJ",FHIL:"EGBCADJK",FHJK:"EGBCADLI",FHJL:"EGBCADIK",FHKL:"EGBCADIJ",FIJK:"HGBCADLE",FIJL:"HGBCADEK",FIKL:"HGBCADEJ",FJKL:"HGBCADEI",GHIJ:"CEBDAFLK",GHIK:"CJBDAFLE",GHIL:"CJBDAFEK",GHJK:"CEBDAFLI",GHJL:"CEBDAFIK",GHKL:"CJBDAFEI",GIJK:"HFBCADLE",GIJL:"HEBCAFDK",GIKL:"HJBCAFDE",GJKL:"HEBCAFDI",HIJK:"CGBDAFLE",HIJL:"CGBDAFEK",HIKL:"CGBDAFEJ",HJKL:"CGBDAFEI",IJKL:"HGBCAFDE"};
+// Prior team strengths (Elo-ish). Blended with live results via Elo updates so
+// the odds shift as the tournament progresses. Tweak freely.
+const TEAM_RATINGS={'Argentina':2080,'France':2050,'Spain':2040,'Brazil':2030,'England':2000,'Netherlands':1960,'Portugal':1960,'Germany':1945,'Belgium':1925,'Croatia':1880,'Uruguay':1875,'Colombia':1865,'Morocco':1860,'Switzerland':1820,'USA':1820,'Mexico':1815,'Japan':1810,'Senegal':1810,'Türkiye':1790,'South Korea':1775,'Ecuador':1770,'Austria':1765,'Australia':1760,'Sweden':1760,'Czechia':1760,'Norway':1755,'Ivory Coast':1750,'Egypt':1750,'Canada':1745,'Iran':1740,'Scotland':1735,'Paraguay':1730,'Bosnia and Herzegovina':1730,'Tunisia':1720,'Algeria':1720,'Ghana':1715,'Qatar':1700,'Saudi Arabia':1695,'South Africa':1690,'DR Congo':1690,'Uzbekistan':1670,'Cape Verde':1660,'Panama':1660,'Iraq':1650,'Jordan':1640,'New Zealand':1620,'Haiti':1610,'Curaçao':1600};
+const SIM_RUNS=4000;
+let _toCache=null,_toSig='';
+// Monte Carlo: simulate remaining group games, rank the 12 thirds, take the top
+// 8, then apply THIRD_SLOT_MAP. Returns per-winner-slot group probabilities +
+// each group's chance its 3rd-placer advances. Memoized on the score signature.
+function thirdPlaceOdds(){
+  const sig=Object.keys(scores).filter(k=>{const s=scores[k];return s&&s[0]!==''&&s[1]!=='';}).sort().map(k=>k+scores[k][0]+scores[k][1]).join('|');
+  if(_toCache&&_toSig===sig)return _toCache;
+  const eff={};Object.keys(GROUPS).forEach(g=>GROUPS[g].forEach(t=>eff[t]=TEAM_RATINGS[t]||1700));
+  const upd=(a,b,ga,gb)=>{const ea=1/(1+Math.pow(10,(eff[b]-eff[a])/400));const sa=ga>gb?1:ga===gb?0.5:0;const gd=Math.abs(ga-gb);const m=gd<=1?1:gd===2?1.5:1.75;const d=24*m*(sa-ea);eff[a]+=d;eff[b]-=d;};
+  Object.keys(GROUPS).forEach(g=>MATCHES[g].forEach(([h,a])=>{const s=scores[g+'|'+h+'|'+a];if(s&&s[0]!==''&&s[1]!=='')upd(h,a,+s[0],+s[1]);}));
+  const pois=l=>{const L=Math.exp(-l);let k=0,p=1;do{k++;p*=Math.random();}while(p>L);return k-1;};
+  const lam=(ra,rb)=>{const s=(ra-rb)/120;return[Math.max(0.15,1.35+s/2),Math.max(0.15,1.35-s/2)];};
+  const SLOTS=['A','B','D','E','G','I','K','L'];
+  const slotCnt={};SLOTS.forEach(w=>slotCnt[w]={});
+  const advCnt={};const groups=Object.keys(GROUPS);groups.forEach(g=>advCnt[g]=0);
+  for(let it=0;it<SIM_RUNS;it++){
+    const thirds=[];
+    for(const g of groups){
+      const T={};GROUPS[g].forEach(t=>{T[t]={p:0,gd:0,gf:0,r:Math.random()};});
+      for(const mt of MATCHES[g]){
+        const h=mt[0],a=mt[1],s=scores[g+'|'+h+'|'+a];let hg,ag;
+        if(s&&s[0]!==''&&s[1]!==''){hg=+s[0];ag=+s[1];}
+        else{const l=lam(eff[h],eff[a]);hg=pois(l[0]);ag=pois(l[1]);}
+        T[h].gf+=hg;T[h].gd+=hg-ag;T[a].gf+=ag;T[a].gd+=ag-hg;
+        if(hg>ag)T[h].p+=3;else if(hg<ag)T[a].p+=3;else{T[h].p++;T[a].p++;}
+      }
+      const ord=GROUPS[g].slice().sort((x,y)=>T[y].p-T[x].p||T[y].gd-T[x].gd||T[y].gf-T[x].gf||T[x].r-T[y].r);
+      const t3=T[ord[2]];thirds.push([g,t3.p,t3.gd,t3.gf,Math.random()]);
+    }
+    thirds.sort((x,y)=>y[1]-x[1]||y[2]-x[2]||y[3]-x[3]||x[4]-y[4]);
+    const top8={};for(let i=0;i<8;i++){top8[thirds[i][0]]=1;advCnt[thirds[i][0]]++;}
+    const missing=groups.filter(g=>!top8[g]).sort().join('');
+    const asg=THIRD_SLOT_MAP[missing];if(!asg)continue;
+    for(let i=0;i<8;i++){const w=SLOTS[i],tg=asg[i];slotCnt[w][tg]=(slotCnt[w][tg]||0)+1;}
+  }
+  const byWinner={};SLOTS.forEach(w=>{byWinner[w]=Object.keys(slotCnt[w]).map(g=>({g,prob:slotCnt[w][g]/SIM_RUNS})).sort((a,b)=>b.prob-a.prob);});
+  const advance={};groups.forEach(g=>advance[g]=advCnt[g]/SIM_RUNS);
+  _toCache={byWinner,advance};_toSig=sig;return _toCache;
+}
+
 function renderKnockout(){
   const el=document.getElementById('knockout-content');el.innerHTML='';
   const top8=computeThirdAdvancing();
+  const odds=thirdPlaceOdds();
   const st=g=>calcStandings(g);
 
   function shortDate(d){const dt=new Date(d+'T12:00:00');const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return m[dt.getMonth()]+' '+dt.getDate();}
@@ -1472,20 +1527,23 @@ function renderKnockout(){
   function r32Sides(slot){
     if(slot.type==='ru-ru')return[mk(st(slot.a)[1]&&st(slot.a)[1].name,'2'+slot.a),mk(st(slot.b)[1]&&st(slot.b)[1].name,'2'+slot.b)];
     if(slot.type==='w-ru')return[mk(st(slot.w)[0]&&st(slot.w)[0].name,'1'+slot.w),mk(st(slot.ru)[1]&&st(slot.ru)[1].name,'2'+slot.ru)];
-    // w-3rd: list the pool's 3rd-place teams currently projected into the top 8
-    const cands=slot.pool.map(g=>st(g)[2]&&st(g)[2].name).filter(t=>t&&top8.includes(t));
-    const poolTitle='Eligible: best 3rd-place team from groups '+slot.pool.join('/')
-      +(cands.length?' · projected candidates: '+cands.join(', '):' · none in top 8 yet');
-    return[mk(st(slot.w)[0]&&st(slot.w)[0].name,'1'+slot.w),{seed:'3rd',poolTitle,cands}];
+    // w-3rd: simulated odds of which group's 3rd-placer fills this slot
+    const lbl=g=>gamesPlayed(g)>0&&st(g)[2]?st(g)[2].name:'Group '+g;
+    const oddsList=(odds.byWinner[slot.w]||[]).filter(o=>o.prob>=0.005)
+      .map(o=>({g:o.g,prob:o.prob,team:lbl(o.g)}));
+    const poolTitle='Eligible 3rd-placers from groups '+slot.pool.join('/')
+      +' · % = simulated chance that group’s 3rd-placer plays here';
+    return[mk(st(slot.w)[0]&&st(slot.w)[0].name,'1'+slot.w),{seed:'3rd',poolTitle,oddsList}];
   }
 
   function teamRow(side){
     const titleAttr=side.poolTitle?` title="${esc(side.poolTitle)}"`:'';
-    if(side.cands!==undefined){ // 3rd-place pool slot — show projected candidate team(s)
-      if(side.cands.length===1)
-        return `<div class="kb-team"><span class="kb-team-name"${titleAttr}>${esc(side.cands[0])}</span><span class="kb-seed">3rd</span></div>`;
-      const body=side.cands.length?side.cands.map(esc).join(' · '):'TBD';
-      return `<div class="kb-team kb-3rd"><span class="kb-3rd-list"${titleAttr}><span class="kb-3rd-tag">3rd — one of</span>${body}</span></div>`;
+    if(side.oddsList!==undefined){ // 3rd-place slot — show simulated placement odds
+      const ol=side.oddsList;
+      if(ol.length===1&&ol[0].prob>=0.999)
+        return `<div class="kb-team"><span class="kb-team-name"${titleAttr}>${esc(ol[0].team)} <span class="kb-in" title="Locked into this slot">✓</span></span><span class="kb-seed">3rd</span></div>`;
+      const rows=ol.length?ol.map(o=>`<span class="kb-odd"><span class="kb-odd-nm">${esc(o.team)} <span class="kb-odd-g">3${o.g}</span></span><span class="kb-odd-pct">${Math.round(o.prob*100)}%</span></span>`).join(''):'TBD';
+      return `<div class="kb-team kb-3rd"><span class="kb-3rd-list"${titleAttr}><span class="kb-3rd-tag">3rd-place odds</span>${rows}</span></div>`;
     }
     const nm=side.name;
     const main=nm?esc(nm):esc(side.seed||'TBD');
