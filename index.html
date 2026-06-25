@@ -270,6 +270,8 @@
   .adv-table td.tr-team { text-align: left; font-weight: 500; }
   .adv-table td.tr-rank { color: var(--text-secondary); width: 24px; }
   .adv-table td.tr-pts { font-weight: 700; }
+  .adv-table td.tr-odds { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+  .adv-row.in .tr-odds { color: var(--green-dark); }
   .tr-grp { font-size: 10px; color: var(--text-secondary); background: var(--bg-secondary); padding: 1px 6px; border-radius: 4px; margin-left: 4px; white-space: nowrap; }
   .adv-row.out { opacity: .5; }
   .adv-row.cut td { border-top: 2px solid var(--green); }
@@ -1394,6 +1396,8 @@ function renderAdvancing(){
   if(ranking.length===0){
     rk.innerHTML='<div class="info-banner" style="margin-bottom:1.25rem">No group games played yet — projections appear once results come in.</div>';
   } else {
+    const advOdds=thirdPlaceOdds().advance;
+    const fmtPct=p=>{const v=p*100;return v>0&&v<1?'<1%':v<100&&v>99?'>99%':Math.round(v)+'%';};
     const rows=ranking.map((t,i)=>{
       const inTop8=i<8;
       return `<tr class="adv-row ${inTop8?'in':'out'}${i===8?' cut':''}">`
@@ -1403,13 +1407,14 @@ function renderAdvancing(){
         +`<td class="tr-pts">${t.pts}</td>`
         +`<td>${t.gd>=0?'+':''}${t.gd}</td>`
         +`<td>${t.gf}</td>`
+        +`<td class="tr-odds">${fmtPct(advOdds[t.g]||0)}</td>`
         +`<td class="tr-status">${inTop8?'✓':'—'}</td>`
         +`</tr>`;
     }).join('');
     const notStarted=12-ranking.length;
     rk.innerHTML=`<div class="third-rank-title">3rd-place race — ranked by Pts → GD → Goals</div>`
-      +`<table class="adv-table"><thead><tr><th>#</th><th>Team</th><th title="Played">Pl</th><th>Pts</th><th title="Goal difference">GD</th><th title="Goals for">GF</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
-      +`<div class="adv-cut-note">Teams above the green line are the projected top 8 (advancing).${notStarted>0?` ${notStarted} group${notStarted>1?'s have':' has'} not started yet.`:''} Note: official FIFA tiebreakers also use fair-play points then FIFA ranking, which aren't tracked here.</div>`;
+      +`<table class="adv-table"><thead><tr><th>#</th><th>Team</th><th title="Played">Pl</th><th>Pts</th><th title="Goal difference">GD</th><th title="Goals for">GF</th><th title="Simulated chance this group's 3rd-placer finishes in the top 8">Adv%</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+      +`<div class="adv-cut-note">Teams above the green line are the projected top 8 (advancing). <strong>Adv%</strong> is a Monte-Carlo estimate (our model) of reaching the Round of 32, updated as results come in.${notStarted>0?` ${notStarted} group${notStarted>1?'s have':' has'} not started yet.`:''} Note: official FIFA tiebreakers also use fair-play points then FIFA ranking, which aren't tracked here.</div>`;
   }
 
   // Teams the group picked to advance
