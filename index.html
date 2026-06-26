@@ -356,6 +356,7 @@
   .fan-chip.advancing { background: var(--green-light); color: var(--green-dark); border-color: #c3dda0; }
   .fan-chip .fan-pos { font-family: 'Teko', sans-serif; font-size: 12px; opacity: 0.75; }
   .no-fans-label { font-size: 11px; color: var(--text-secondary); font-style: italic; }
+  .today-nopref { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-secondary); }
 
   @media (max-width: 600px) {
     header h1 { font-size: 22px; }
@@ -481,6 +482,7 @@
         <p class="calc-note-keys">
           • The number on a chip (e.g. "2nd") is where they predicted that team to finish.<br>
           • "/ draw ok" means a draw ties as a best result too.<br>
+          • <strong>🤷 No stake</strong> means every result scores the same for them — their group is already settled or the relevant team is eliminated, so they're not rooting either way.<br>
           • A <span class="calc-green">green chip</span> means their good result is happening right now.
         </p>
       </div>
@@ -1125,13 +1127,17 @@ function renderToday(){
     const rawTime=MATCH_TIMES[key];
     const timeLabel=rawTime?(()=>{const[hr,m]=rawTime.split(':').map(Number);const ampm=hr>=12?'PM':'AM';const h12=hr%12||12;return `${h12}:${m.toString().padStart(2,'0')} ${ampm} PT`;})():'';
 
-    const hFans=[],drawFans=[],aFans=[];
+    const hFans=[],drawFans=[],aFans=[],noPrefFans=[];
     FRIEND_NAMES.forEach(name=>{
       const res=bestMatchResult(name,g,h,a);
       if(!res)return;
       const{hp,dp,rp,mx,hPos,aPos}=res;
       const homeBest=hp===mx,drawBest=dp===mx,awayBest=rp===mx;
-      if(homeBest&&!awayBest){
+      if(homeBest&&drawBest&&awayBest){
+        // every result scores the same → this game can't change their points
+        // (e.g. their group is already settled / the team is eliminated)
+        noPrefFans.push({name});
+      } else if(homeBest&&!awayBest){
         // home win is (tied) best; a draw may also work
         hFans.push({name,pos:hPos,drawOk:drawBest});
       } else if(awayBest&&!homeBest){
@@ -1197,6 +1203,7 @@ function renderToday(){
           <div class="today-fans right">${winChips(aFans,aWon)}</div>
         </div>
       </div>
+      ${noPrefFans.length?`<div class="today-nopref" title="This result can't change their projected points — their group is already settled or the relevant team is eliminated">🤷 No stake: ${noPrefFans.map(f=>esc(f.name)).join(', ')}</div>`:''}
     </div>`;
   }
 
