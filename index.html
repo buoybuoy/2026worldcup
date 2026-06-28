@@ -1355,7 +1355,7 @@ function setPrizeFilter(on){prizePoolOnly=on;renderLeaderboard();}
 function renderLeaderboardKO(head,body){
   let names=Object.keys(KNOCKOUT_PREDS);
   if(prizePoolOnly)names=names.filter(inPrizePool);
-  head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th>Name</th><th class="r">Knockout</th><th class="r" title="Max knockout points still attainable from matches yet to be played (picks whose team is still alive)">Remaining</th></tr>`;
+  head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th>Name</th><th class="r">Knockout</th><th class="r" title="Max knockout points still attainable from matches yet to be played (picks whose team is still alive)">Max</th></tr>`;
   if(names.length===0){
     body.innerHTML=`<tr><td colspan="4" style="text-align:center;color:var(--text-secondary);padding:20px 12px;line-height:1.6">🏟️ Knockout standings appear once Round-of-32 picks lock.<br><span style="font-size:12px">Bracket closes Sun June 28, 12:00 PM PST.</span></td></tr>`;
     return;
@@ -1376,7 +1376,7 @@ function renderLeaderboard(){
   stampLastUpdated();
   const head=document.getElementById('lb-head'),body=document.getElementById('leaderboard-body');
   if(leaderboardMode==='ko'){renderLeaderboardKO(head,body);return;}
-  head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change from the last completed game">Move</th><th>Name</th><th class="c" title="Group finishes + 3rd-place advancement">Group Stage</th><th class="c" title="Knockout bracket points">KO</th><th class="r">Total</th><th class="r" title="Max knockout points still attainable from matches yet to be played (picks whose team is still alive)">Remaining</th></tr>`;
+  head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change from the last completed game">Move</th><th>Name</th><th class="c" title="Group finishes + 3rd-place advancement">Group Stage</th><th class="c" title="Knockout bracket points">KO</th><th class="r">Total</th><th class="r" title="Max knockout points still attainable from matches yet to be played (picks whose team is still alive)">Max</th></tr>`;
   const pool=prizePoolOnly?FRIEND_NAMES.filter(inPrizePool):[...FRIEND_NAMES];
   // Rank within the displayed pool (so the prize-pool filter renumbers cleanly).
   const poolRank=()=>{const tot={};pool.forEach(n=>tot[n]=totalScore(n));const rk={};pool.forEach(n=>rk[n]=pool.filter(m=>tot[m]>tot[n]).length+1);return rk;};
