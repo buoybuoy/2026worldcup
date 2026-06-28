@@ -872,10 +872,12 @@ function scoreThird(name){
   return{pts:correct.length*5,correct,pending:false};
 }
 
+// Membership scoring: a pick earns its round's points if that team is among the
+// round's actual winners (order-independent — a team plays one match per round).
 function scoreKnockout(name){
   const kp=KNOCKOUT_PREDS[name];if(!kp)return 0;
   const R=KO_RESULTS||{};let pts=0;
-  const tally=(picks,res,per)=>{(picks||[]).forEach((t,i)=>{if(res&&res[i]&&t===res[i])pts+=per;});};
+  const tally=(picks,res,per)=>{const set=new Set((res||[]).filter(Boolean));(picks||[]).forEach(t=>{if(set.has(t))pts+=per;});};
   tally(kp.r32,R.r32,KO_SCORING.R32);tally(kp.r16,R.r16,KO_SCORING.R16);tally(kp.qf,R.qf,KO_SCORING.QF);tally(kp.sf,R.sf,KO_SCORING.SF);
   if(kp.final&&R.final&&kp.final===R.final)pts+=KO_SCORING.F;
   return pts;
@@ -903,8 +905,8 @@ function koRemaining(name){
   const kp=KNOCKOUT_PREDS[name];if(!kp)return 0;
   const alive=koAliveSet();let rem=0;
   [['r32','R32'],['r16','R16'],['qf','QF'],['sf','SF']].forEach(([r,SK])=>{
-    const preds=kp[r]||[],res=KO_RESULTS[r]||[];
-    preds.forEach((t,i)=>{if(!(res[i]&&res[i]!=='')&&alive.has(t))rem+=KO_SCORING[SK];});
+    const won=new Set((KO_RESULTS[r]||[]).filter(Boolean));
+    (kp[r]||[]).forEach(t=>{if(alive.has(t)&&!won.has(t))rem+=KO_SCORING[SK];});
   });
   if(!(KO_RESULTS.final&&KO_RESULTS.final!=='')&&kp.final&&alive.has(kp.final))rem+=KO_SCORING.F;
   return rem;
@@ -1102,13 +1104,23 @@ function findMatchKeyInfo(home,away){
 }
 let liveData={};
 let lastUpdated=null;
+let koBackfilled=false;
 async function fetchLiveScores(){
   try{
     const now=new Date();
     // Query ESPN buckets around PT-today (±1 day) — ESPN groups by ET, so a
     // PT-evening game can land in the next ET date. UTC dates miss those.
     const fmtPT=dt=>dt.toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'}).replace(/-/g,'');
-    const dateSet=[...new Set([-1,0,1].map(off=>fmtPT(new Date(now.getTime()+off*86400000))))];
+    const todayPT=fmtPT(now);
+    const dates=new Set([-1,0,1].map(off=>fmtPT(new Date(now.getTime()+off*86400000))));
+    // On the first poll of a session, also backfill every past knockout date so
+    // KO_RESULTS is rebuilt fully (older rounds aren't persisted in the file).
+    const wantBackfill=!koBackfilled;
+    if(wantBackfill){
+      const koDates=[...KNOCKOUT_R32.map(m=>m.date),...['R16','QF','SF','F'].flatMap(k=>(KNOCKOUT_LATER[k]||[]).map(m=>m.date)),KNOCKOUT_LATER.THIRD.date];
+      koDates.forEach(d=>{const ymd=d.replace(/-/g,'');if(ymd<=todayPT)dates.add(ymd);});
+    }
+    const dateSet=[...dates].sort();  // ascending → earlier rounds recorded first
     const newLive={};
     let scoresChanged=false;
     for(const d of dateSet){
@@ -1124,16 +1136,28 @@ async function fetchLiveScores(){
           const away=NAME_MAP_ESPN[awayC.team.displayName]||awayC.team.displayName;
           const info=findMatchKeyInfo(home,away);
           if(!info){
-            // Knockout match? Map by team pair and stash live score + winner.
+            // Group stage is over, so any other match is a knockout match.
+            const kst=comp.status.type.state;
+            const khs=Math.round(parseFloat(homeC.score||'0')),kas=Math.round(parseFloat(awayC.score||'0'));
+            const done=kst==='post'||comp.status.type.completed;
+            const winTeam=homeC.winner===true?home:(awayC.winner===true?away:null);
+            // Today-tab live display (R32 matchups are resolvable from group standings).
             const ko=koMatchInfo(home,away);
             if(ko){
-              const kst=comp.status.type.state;
-              const khs=Math.round(parseFloat(homeC.score||'0')),kas=Math.round(parseFloat(awayC.score||'0'));
               const kscore=ko.swapped?[String(kas),String(khs)]:[String(khs),String(kas)];
               let winner=null;
-              if(homeC.winner===true)winner=ko.swapped?'a':'h';
-              else if(awayC.winner===true)winner=ko.swapped?'h':'a';
+              if(winTeam===home)winner=ko.swapped?'a':'h';else if(winTeam===away)winner=ko.swapped?'h':'a';
               newLive[ko.key]={state:kst,score:kscore,clock:comp.status.type.shortDetail||'',winner};
+            }
+            // Record the round winner into KO_RESULTS so the leaderboard updates.
+            if(done&&winTeam){
+              const round=koRoundForTeams(home,away);
+              if(round==='final'){
+                if(KO_RESULTS.final!==winTeam){KO_RESULTS.final=winTeam;scoresChanged=true;}
+              } else if(round){
+                const arr=KO_RESULTS[round]||(KO_RESULTS[round]=[]);
+                if(arr.filter(Boolean).length<KO_ROUND_SIZE[round]&&!arr.includes(winTeam)){arr.push(winTeam);scoresChanged=true;}
+              }
             }
             return;
           }
@@ -1165,6 +1189,7 @@ async function fetchLiveScores(){
         }catch(e){}
       });
     }
+    if(wantBackfill)koBackfilled=true;
     liveData=newLive;
     lastUpdated=new Date();
     if(scoresChanged)renderAll();else renderToday();
@@ -1216,6 +1241,15 @@ function koMatchInfo(home,away){
     KNOCKOUT_R32.forEach(m=>{const[h,a]=r32Teams(m.slot);if(h&&a){_koR32Map[h+'|'+a]={key:'KO|'+m.num,swapped:false};_koR32Map[a+'|'+h]={key:'KO|'+m.num,swapped:true};}});
   }
   return _koR32Map[home+'|'+away]||null;
+}
+const KO_ROUND_SIZE={r32:16,r16:8,qf:4,sf:2};
+// Which knockout round a matchup belongs to, inferred from how many KO rounds
+// each team has already won (R32 winners have 1 prior win, etc.). Lets us record
+// results by round without needing the bracket-tree position.
+function koRoundForTeams(home,away){
+  const rounds=['r32','r16','qf','sf','final'];
+  const won=t=>['r32','r16','qf','sf'].reduce((c,r)=>c+((KO_RESULTS[r]||[]).includes(t)?1:0),0)+(KO_RESULTS.final===t?1:0);
+  return rounds[Math.min(won(home),won(away))]||null;
 }
 // Today's knockout fixtures with resolved teams (R32) or feeder placeholders.
 function knockoutToday(today){
