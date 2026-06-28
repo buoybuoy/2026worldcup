@@ -211,6 +211,12 @@
   .friend-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
   .friend-card-name { font-weight: 600; font-size: 15px; }
   .friend-pts { font-family: 'Teko', sans-serif; font-size: 26px; color: var(--green); font-weight: 600; }
+  details.pred-collapse { margin-bottom: 6px; }
+  details.pred-collapse > summary { list-style: none; cursor: pointer; outline: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+  details.pred-collapse > summary::-webkit-details-marker { display: none; }
+  details.pred-collapse[open] .sched-chevron { transform: rotate(180deg); }
+  .pred-collapse-pts { font-family: 'Teko', sans-serif; font-size: 16px; color: var(--green); display: inline-flex; align-items: center; gap: 8px; }
+  .pred-collapse-body { padding-top: 12px; }
   .pred-groups-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; margin-bottom: 12px; }
   .pred-group-block { background: var(--bg-secondary); border-radius: 8px; padding: 8px 10px; }
   .pred-group-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-secondary); margin-bottom: 6px; display: flex; justify-content: space-between; }
@@ -1574,9 +1580,11 @@ function renderPredictions(){
     if(missed.length)thirdReveal=`<div class="third-actual-label">Advanced (missed)</div><div class="chips-row">${missed.map(t=>`<span class="chip actual">${esc(t)}</span>`).join('')}</div>`;
   }
   // Bracket-only entrants (no group-stage predictions) skip the group + 3rd-place sections.
+  // The group stage is complete, so its picks are collapsed by default.
   const hasGroup=!!FRIENDS_PREDS[name];
+  const gsPts=Object.keys(GROUPS).reduce((s,g)=>{const rr=scoreGroup(name,g);return s+(rr?rr.pts:0);},0)+(tp.pending?0:tp.pts);
   const groupBlock=hasGroup
-    ? `${groupsHtml}<div class="third-section-title">3rd-place advance picks (${thirdStatus})</div><div class="chips-row">${thirdChips}</div>${thirdReveal}`
+    ? `<details class="pred-collapse"><summary><span>📋 Group-stage predictions</span><span class="pred-collapse-pts">${gsPts} pts <span class="sched-chevron">▾</span></span></summary><div class="pred-collapse-body">${groupsHtml}<div class="third-section-title">3rd-place advance picks (${thirdStatus})</div><div class="chips-row">${thirdChips}</div>${thirdReveal}</div></details>`
     : `<div class="kp-empty" style="margin-bottom:4px">🏟️ Joined for the knockouts — no group-stage predictions.</div>`;
   card.innerHTML=`<div class="friend-card-header"><span class="friend-card-name">${esc(name)}</span><span class="friend-pts">${total} pts</span></div>${groupBlock}<div class="third-section-title" style="margin-top:18px">🏟️ Knockout bracket predictions</div>${renderKnockoutPred(name)}`;
   el.appendChild(card);
