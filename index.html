@@ -856,6 +856,35 @@ function scoreKnockout(name){
   return pts;
 }
 
+// All 32 Round-of-32 teams (resolved from final group standings).
+function allR32Teams(){const s=new Set();KNOCKOUT_R32.forEach(m=>{const[h,a]=r32Teams(m.slot);if(h)s.add(h);if(a)s.add(a);});return s;}
+// Teams still able to advance, derived from KO_RESULTS: prune to a round's
+// winners only once that round is complete (stay optimistic mid-round).
+function koAliveSet(){
+  const order=[['r32',16],['r16',8],['qf',4],['sf',2],['final',1]];
+  let survivors=allR32Teams();
+  for(const[r,n] of order){
+    const arr=r==='final'?(KO_RESULTS.final?[KO_RESULTS.final]:[]):(KO_RESULTS[r]||[]);
+    const winners=arr.filter(Boolean);
+    if(winners.length===0)break;            // round not started → keep survivors
+    if(winners.length>=n)survivors=new Set(winners); // complete → prune to winners
+    else break;                             // mid-round → keep survivors until it finishes
+  }
+  return survivors;
+}
+// Max knockout points a participant can still earn: each not-yet-decided pick
+// whose team is still alive, worth that round's value.
+function koRemaining(name){
+  const kp=KNOCKOUT_PREDS[name];if(!kp)return 0;
+  const alive=koAliveSet();let rem=0;
+  [['r32','R32'],['r16','R16'],['qf','QF'],['sf','SF']].forEach(([r,SK])=>{
+    const preds=kp[r]||[],res=KO_RESULTS[r]||[];
+    preds.forEach((t,i)=>{if(!(res[i]&&res[i]!=='')&&alive.has(t))rem+=KO_SCORING[SK];});
+  });
+  if(!(KO_RESULTS.final&&KO_RESULTS.final!=='')&&kp.final&&alive.has(kp.final))rem+=KO_SCORING.F;
+  return rem;
+}
+
 function totalScore(name){
   let t=Object.keys(GROUPS).reduce((s,g)=>{const r=scoreGroup(name,g);return s+(r?r.pts:0);},0);
   t+=scoreThird(name).pts;
@@ -1326,19 +1355,19 @@ function setPrizeFilter(on){prizePoolOnly=on;renderLeaderboard();}
 function renderLeaderboardKO(head,body){
   let names=Object.keys(KNOCKOUT_PREDS);
   if(prizePoolOnly)names=names.filter(inPrizePool);
-  head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th>Name</th><th class="r">Knockout</th></tr>`;
+  head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th>Name</th><th class="r">Knockout</th><th class="r" title="Max knockout points still attainable from matches yet to be played (picks whose team is still alive)">Remaining</th></tr>`;
   if(names.length===0){
-    body.innerHTML=`<tr><td colspan="3" style="text-align:center;color:var(--text-secondary);padding:20px 12px;line-height:1.6">🏟️ Knockout standings appear once Round-of-32 picks lock.<br><span style="font-size:12px">Bracket closes Sun June 28, 12:00 PM PST.</span></td></tr>`;
+    body.innerHTML=`<tr><td colspan="4" style="text-align:center;color:var(--text-secondary);padding:20px 12px;line-height:1.6">🏟️ Knockout standings appear once Round-of-32 picks lock.<br><span style="font-size:12px">Bracket closes Sun June 28, 12:00 PM PST.</span></td></tr>`;
     return;
   }
-  const ranked=names.map(n=>({n,ko:scoreKnockout(n)})).sort((a,b)=>b.ko-a.ko);
+  const ranked=names.map(n=>({n,ko:scoreKnockout(n),rem:koRemaining(n)})).sort((a,b)=>b.ko-a.ko);
   let html='';
   ranked.forEach(f=>{
     const rank=ranked.findIndex(x=>x.ko===f.ko)+1;
     const rc=rank===1?'rank-1':rank===2?'rank-2':rank===3?'rank-3':'';
     const medal=rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':'';
     const nm=f.n.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="name-cell"><span class="name-link" onclick="viewPred('${nm}')">${esc(f.n)}</span></td><td class="pts-cell">${f.ko}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td></tr>`;
+    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="name-cell"><span class="name-link" onclick="viewPred('${nm}')">${esc(f.n)}</span></td><td class="pts-cell">${f.ko}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td><td class="sub-cell">${f.rem?'+'+f.rem:'–'}</td></tr>`;
   });
   body.innerHTML=html;
 }
@@ -1347,7 +1376,7 @@ function renderLeaderboard(){
   stampLastUpdated();
   const head=document.getElementById('lb-head'),body=document.getElementById('leaderboard-body');
   if(leaderboardMode==='ko'){renderLeaderboardKO(head,body);return;}
-  head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change from the last completed game">Move</th><th>Name</th><th class="c" title="Group finishes + 3rd-place advancement">Group Stage</th><th class="c" title="Knockout bracket points">KO</th><th class="r">Total</th></tr>`;
+  head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change from the last completed game">Move</th><th>Name</th><th class="c" title="Group finishes + 3rd-place advancement">Group Stage</th><th class="c" title="Knockout bracket points">KO</th><th class="r">Total</th><th class="r" title="Max knockout points still attainable from matches yet to be played (picks whose team is still alive)">Remaining</th></tr>`;
   const pool=prizePoolOnly?FRIEND_NAMES.filter(inPrizePool):[...FRIEND_NAMES];
   // Rank within the displayed pool (so the prize-pool filter renumbers cleanly).
   const poolRank=()=>{const tot={};pool.forEach(n=>tot[n]=totalScore(n));const rk={};pool.forEach(n=>rk[n]=pool.filter(m=>tot[m]>tot[n]).length+1);return rk;};
@@ -1360,7 +1389,7 @@ function renderLeaderboard(){
     delete baseScores[lg.g+'|'+lg.h+'|'+lg.a];
     baseRanks=withScores(baseScores,poolRank);
   }
-  const ranked=pool.map(n=>({n,total:totalScore(n),groupPts:Object.keys(GROUPS).reduce((s,g)=>{const r=scoreGroup(n,g);return s+(r?r.pts:0);},0),tp:scoreThird(n),ko:scoreKnockout(n)})).sort((a,b)=>b.total-a.total);
+  const ranked=pool.map(n=>({n,total:totalScore(n),groupPts:Object.keys(GROUPS).reduce((s,g)=>{const r=scoreGroup(n,g);return s+(r?r.pts:0);},0),tp:scoreThird(n),ko:scoreKnockout(n),rem:koRemaining(n)})).sort((a,b)=>b.total-a.total);
   let html='';
   ranked.forEach((f,i)=>{
     const rank=ranked.findIndex(x=>x.total===f.total)+1;
@@ -1372,7 +1401,7 @@ function renderLeaderboard(){
       if(d>0)move=`<span class="move-up">▲${d}</span>`;
       else if(d<0)move=`<span class="move-down">▼${-d}</span>`;
     }
-    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="move-cell">${move}</td><td class="name-cell"><span class="name-link" onclick="viewPred('${f.n.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">${esc(f.n)}</span></td><td class="sub-cell">${f.groupPts+(f.tp.pending?0:f.tp.pts)} pts</td><td class="sub-cell">${f.ko?f.ko+' pts':'–'}</td><td class="pts-cell">${f.total}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td></tr>`;
+    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="move-cell">${move}</td><td class="name-cell"><span class="name-link" onclick="viewPred('${f.n.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">${esc(f.n)}</span></td><td class="sub-cell">${f.groupPts+(f.tp.pending?0:f.tp.pts)} pts</td><td class="sub-cell">${f.ko?f.ko+' pts':'–'}</td><td class="pts-cell">${f.total}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td><td class="sub-cell">${f.rem?'+'+f.rem:'–'}</td></tr>`;
   });
   document.getElementById('leaderboard-body').innerHTML=html;
 }
