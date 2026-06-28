@@ -134,6 +134,10 @@
     border-radius: var(--radius);
     overflow: hidden;
   }
+  .lb-toggle { display: inline-flex; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .lb-toggle-btn { font-size: 12px; font-weight: 600; padding: 6px 14px; background: var(--bg-card); color: var(--text-secondary); border: none; cursor: pointer; transition: background .15s, color .15s; }
+  .lb-toggle-btn + .lb-toggle-btn { border-left: 1px solid var(--border); }
+  .lb-toggle-btn.active { background: var(--green); color: #fff; }
   .leaderboard-table { width: 100%; border-collapse: collapse; }
   .leaderboard-table th {
     text-align: left; font-size: 10px; font-weight: 600;
@@ -456,9 +460,13 @@
   <div id="tab-leaderboard" class="tab-panel active">
     <div id="last-updated-line" style="font-size:12px;color:var(--text-secondary);text-align:right;min-height:16px;"></div>
     <div id="last-game-line" style="font-size:12px;color:var(--text-secondary);text-align:right;margin-bottom:6px;min-height:16px;"></div>
+    <div class="lb-toggle">
+      <button id="lb-tab-overall" class="lb-toggle-btn active" onclick="setLeaderboardMode('overall')">Overall</button>
+      <button id="lb-tab-ko" class="lb-toggle-btn" onclick="setLeaderboardMode('ko')">🏟️ Knockout only</button>
+    </div>
     <div class="leaderboard-card">
       <table class="leaderboard-table">
-        <thead><tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change from the last completed game">Move</th><th>Name</th><th class="c" title="Group finishes + 3rd-place advancement">Group Stage</th><th class="c" title="Knockout bracket points">KO</th><th class="r">Total</th></tr></thead>
+        <thead id="lb-head"><tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change from the last completed game">Move</th><th>Name</th><th class="c" title="Group finishes + 3rd-place advancement">Group Stage</th><th class="c" title="Knockout bracket points">KO</th><th class="r">Total</th></tr></thead>
         <tbody id="leaderboard-body"></tbody>
       </table>
     </div>
@@ -1228,8 +1236,41 @@ function rankMap(){
   const rk={};FRIEND_NAMES.forEach(n=>rk[n]=FRIEND_NAMES.filter(m=>tot[m]>tot[n]).length+1);
   return rk;
 }
+let leaderboardMode='overall';
+function setLeaderboardMode(m){
+  leaderboardMode=m;
+  const ov=document.getElementById('lb-tab-overall'),ko=document.getElementById('lb-tab-ko');
+  if(ov)ov.classList.toggle('active',m==='overall');
+  if(ko)ko.classList.toggle('active',m==='ko');
+  renderLeaderboard();
+}
+
+// Knockout-only standings — ranks everyone with a bracket entry (incl. people
+// who join only for the knockouts and aren't in the group-stage roster).
+function renderLeaderboardKO(head,body){
+  const names=Object.keys(KNOCKOUT_PREDS);
+  head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th>Name</th><th class="r">Knockout</th></tr>`;
+  if(names.length===0){
+    body.innerHTML=`<tr><td colspan="3" style="text-align:center;color:var(--text-secondary);padding:20px 12px;line-height:1.6">🏟️ Knockout standings appear once Round-of-32 picks lock.<br><span style="font-size:12px">Bracket closes Sun June 28, 12:00 PM PST.</span></td></tr>`;
+    return;
+  }
+  const ranked=names.map(n=>({n,ko:scoreKnockout(n)})).sort((a,b)=>b.ko-a.ko);
+  let html='';
+  ranked.forEach(f=>{
+    const rank=ranked.findIndex(x=>x.ko===f.ko)+1;
+    const rc=rank===1?'rank-1':rank===2?'rank-2':rank===3?'rank-3':'';
+    const medal=rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':'';
+    const nm=f.n.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="name-cell"><span class="name-link" onclick="viewPred('${nm}')">${esc(f.n)}</span></td><td class="pts-cell">${f.ko}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td></tr>`;
+  });
+  body.innerHTML=html;
+}
+
 function renderLeaderboard(){
   stampLastUpdated();
+  const head=document.getElementById('lb-head'),body=document.getElementById('leaderboard-body');
+  if(leaderboardMode==='ko'){renderLeaderboardKO(head,body);return;}
+  head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change from the last completed game">Move</th><th>Name</th><th class="c" title="Group finishes + 3rd-place advancement">Group Stage</th><th class="c" title="Knockout bracket points">KO</th><th class="r">Total</th></tr>`;
   // Move = rank change caused by the most recently completed game: compare
   // current ranks to ranks with that one game removed (re-bases each game).
   const lg=lastCompletedMatch();
@@ -1332,9 +1373,11 @@ function renderKnockoutPred(name){
 }
 
 function renderPredictions(){
-  // Populate select (alphabetical)
+  // Populate select (alphabetical) — group-stage roster plus anyone who joined
+  // only for the knockout bracket (present in KNOCKOUT_PREDS but not FRIEND_NAMES).
   const sel=document.getElementById('pred-select');
-  sel.innerHTML=[...FRIEND_NAMES].sort((a,b)=>a.localeCompare(b))
+  const allNames=[...new Set([...FRIEND_NAMES,...Object.keys(KNOCKOUT_PREDS)])].sort((a,b)=>a.localeCompare(b));
+  sel.innerHTML=allNames
     .map(n=>`<option value="${esc(n)}"${n===selectedPred?' selected':''}>${esc(n)}</option>`).join('');
 
   // Single participant card
@@ -1385,7 +1428,12 @@ function renderPredictions(){
     const missed=adv.filter(t=>!picks.includes(t));
     if(missed.length)thirdReveal=`<div class="third-actual-label">Advanced (missed)</div><div class="chips-row">${missed.map(t=>`<span class="chip actual">${esc(t)}</span>`).join('')}</div>`;
   }
-  card.innerHTML=`<div class="friend-card-header"><span class="friend-card-name">${esc(name)}</span><span class="friend-pts">${total} pts</span></div>${groupsHtml}<div class="third-section-title">3rd-place advance picks (${thirdStatus})</div><div class="chips-row">${thirdChips}</div>${thirdReveal}<div class="third-section-title" style="margin-top:18px">🏟️ Knockout bracket predictions</div>${renderKnockoutPred(name)}`;
+  // Bracket-only entrants (no group-stage predictions) skip the group + 3rd-place sections.
+  const hasGroup=!!FRIENDS_PREDS[name];
+  const groupBlock=hasGroup
+    ? `${groupsHtml}<div class="third-section-title">3rd-place advance picks (${thirdStatus})</div><div class="chips-row">${thirdChips}</div>${thirdReveal}`
+    : `<div class="kp-empty" style="margin-bottom:4px">🏟️ Joined for the knockouts — no group-stage predictions.</div>`;
+  card.innerHTML=`<div class="friend-card-header"><span class="friend-card-name">${esc(name)}</span><span class="friend-pts">${total} pts</span></div>${groupBlock}<div class="third-section-title" style="margin-top:18px">🏟️ Knockout bracket predictions</div>${renderKnockoutPred(name)}`;
   el.appendChild(card);
 }
 
