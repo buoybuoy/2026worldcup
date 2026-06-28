@@ -353,6 +353,9 @@
   .today-score { font-family: 'Teko', sans-serif; font-size: 36px; font-weight: 600; color: var(--green); line-height: 1; }
   .today-score-vs { font-family: 'Teko', sans-serif; font-size: 24px; color: var(--text-secondary); line-height: 1.4; }
   .today-fans-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .today-fans-row.two { grid-template-columns: 1fr 1fr; }
+  .today-group-badge.ko { color: var(--green-dark); }
+  .today-ko-note { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-secondary); }
   .today-fans-col-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); margin-bottom: 5px; }
   .today-fans-col.center .today-fans-col-label { text-align: center; }
   .today-fans-col.center .today-fans { justify-content: center; }
@@ -1104,6 +1107,70 @@ function stampLastUpdated(){
   if(lg){const m=lastCompletedMatch();lg.textContent=m?`Last game: ${m.h} ${m.sc[0]}–${m.sc[1]} ${m.a}`:'';}
 }
 
+// ---- Knockout matches on the Today tab -----------------------------------
+// Resolve an R32 slot to its two actual teams (group stage is complete).
+function r32Teams(slot){
+  const nm=(g,i)=>{const s=calcStandings(g);return s[i]?s[i].name:null;};
+  if(slot.type==='ru-ru')return[nm(slot.a,1),nm(slot.b,1)];
+  if(slot.type==='w-ru')return[nm(slot.w,0),nm(slot.ru,1)];
+  // w-3rd: which group's 3rd-placer fills this slot, per FIFA's allocation table
+  const SLOTW=['A','B','D','E','G','I','K','L'];
+  const top8=thirdPlaceRanking().slice(0,8).map(t=>t.g);
+  const missing=Object.keys(GROUPS).filter(g=>!top8.includes(g)).sort().join('');
+  const asg=THIRD_SLOT_MAP[missing];
+  const tg=asg?asg[SLOTW.indexOf(slot.w)]:null;
+  return[nm(slot.w,0),tg?nm(tg,2):null];
+}
+function fmtKOTime(t){const[hr,m]=t.split(':').map(Number);const ap=hr>=12?'PM':'AM';const h12=hr%12||12;return `${h12}:${String(m).padStart(2,'0')} ${ap} PT`;}
+// Today's knockout fixtures with resolved teams (R32) or feeder placeholders.
+function knockoutToday(today){
+  const out=[];
+  KNOCKOUT_R32.forEach(m=>{if(m.date!==today)return;const[h,a]=r32Teams(m.slot);out.push({round:'r32',label:'Round of 32',time:m.time,h:h||'TBD',a:a||'TBD',resolved:!!(h&&a)});});
+  [['R16','r16','Round of 16'],['QF','qf','Quarterfinal'],['SF','sf','Semifinal'],['F','final','Final']].forEach(([k,round,label])=>{
+    (KNOCKOUT_LATER[k]||[]).forEach(m=>{if(m.date!==today)return;out.push({round,label,time:m.time,h:'Winner M'+m.f[0],a:'Winner M'+m.f[1],resolved:false});});
+  });
+  const tp=KNOCKOUT_LATER.THIRD;
+  if(tp&&tp.date===today)out.push({round:null,label:'Third-place play-off',time:tp.time,h:'Loser M'+tp.f[0],a:'Loser M'+tp.f[1],resolved:false});
+  return out.sort((x,y)=>x.time.localeCompare(y.time));
+}
+// Who each bracket entrant roots for: the team (of these two) they picked to
+// win this match. No pick for either team → no stake.
+function koFans(round,h,a){
+  const hFans=[],aFans=[],noFans=[];
+  Object.keys(KNOCKOUT_PREDS).forEach(name=>{
+    const kp=KNOCKOUT_PREDS[name];
+    const preds=round==='final'?(kp.final?[kp.final]:[]):(round?(kp[round]||[]):[]);
+    if(preds.includes(h))hFans.push(name);
+    else if(preds.includes(a))aFans.push(name);
+    else noFans.push(name);
+  });
+  return{hFans,aFans,noFans};
+}
+function buildKOCard(m){
+  const statusPill=`<span class="status-pill">${m.time?fmtKOTime(m.time):'Upcoming'}</span>`;
+  const chip=n=>`<span class="fan-chip">${esc(n)}</span>`;
+  const col=arr=>arr.length?arr.map(chip).join(''):`<span class="no-fans-label">—</span>`;
+  let body,noStake='';
+  if(!m.resolved){
+    body=`<div class="today-ko-note">Rooting appears once both teams are set.</div>`;
+  } else if(Object.keys(KNOCKOUT_PREDS).length===0){
+    body=`<div class="today-ko-note">🏟️ Rooting appears once Round-of-32 bracket picks lock (today, 12:00 PM PT).</div>`;
+  } else {
+    const{hFans,aFans,noFans}=koFans(m.round,m.h,m.a);
+    body=`<div class="today-fans-row two">`
+      +`<div class="today-fans-col"><div class="today-fans-col-label">${esc(m.h)}</div><div class="today-fans">${col(hFans)}</div></div>`
+      +`<div class="today-fans-col right"><div class="today-fans-col-label">${esc(m.a)}</div><div class="today-fans right">${col(aFans)}</div></div>`
+      +`</div>`;
+    if(noFans.length)noStake=`<div class="today-nopref" title="They didn't pick either team to win this match">🤷 No stake: ${noFans.map(esc).join(', ')}</div>`;
+  }
+  return `<div class="today-match-card">`
+    +`<div class="today-match-header"><span class="today-group-badge ko">${esc(m.label)}</span>${statusPill}</div>`
+    +`<div class="today-scoreline"><div class="today-team-side"><div class="today-team-name">${esc(m.h)}</div></div>`
+    +`<div class="today-score-box"><div class="today-score-vs">vs</div></div>`
+    +`<div class="today-team-side right"><div class="today-team-name">${esc(m.a)}</div></div></div>`
+    +`${body}${noStake}</div>`;
+}
+
 function renderToday(){
   const el=document.getElementById('today-content');el.innerHTML='';
   const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'});
@@ -1115,8 +1182,9 @@ function renderToday(){
     });
   });
   todayMatches.sort((a,b)=>(MATCH_TIMES[a.key]||'99:99').localeCompare(MATCH_TIMES[b.key]||'99:99'));
+  const koList=knockoutToday(today);
 
-  if(todayMatches.length===0){
+  if(todayMatches.length===0&&koList.length===0){
     el.innerHTML='<div class="info-banner">No matches scheduled today.</div>';
     return;
   }
@@ -1230,7 +1298,8 @@ function renderToday(){
     return `<div class="today-section-title">${title}</div>${matches.map(buildCard).join('')}`;
   }
 
-  el.innerHTML=section('🔴 Live now',live)+section('⏰ Upcoming today',upcoming)+section('✅ Completed',final);
+  const koHtml=koList.length?`<div class="today-section-title">🏟️ Knockout</div>${koList.map(buildKOCard).join('')}`:'';
+  el.innerHTML=section('🔴 Live now',live)+section('⏰ Upcoming today',upcoming)+section('✅ Completed',final)+koHtml;
 }
 
 // Run fn() with `scores` temporarily replaced by `map`, then restore. Lets us
