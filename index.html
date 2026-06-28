@@ -1429,22 +1429,49 @@ function setPrizeFilter(on){prizePoolOnly=on;renderLeaderboard();}
 
 // Knockout-only standings — ranks everyone with a bracket entry (incl. people
 // who join only for the knockouts and aren't in the group-stage roster).
+// Run fn() with KO_RESULTS temporarily replaced, then restore (for the move baseline).
+function withKoResults(map,fn){
+  const b={r32:KO_RESULTS.r32,r16:KO_RESULTS.r16,qf:KO_RESULTS.qf,sf:KO_RESULTS.sf,final:KO_RESULTS.final};
+  Object.assign(KO_RESULTS,map);
+  try{return fn();}finally{Object.assign(KO_RESULTS,b);}
+}
+// Most recently filled knockout result (round + index), or null.
+function lastKoResult(){
+  let last=null;
+  ['r32','r16','qf','sf'].forEach(r=>(KO_RESULTS[r]||[]).forEach((v,i)=>{if(v)last={round:r,idx:i};}));
+  if(KO_RESULTS.final)last={round:'final',idx:0};
+  return last;
+}
 function renderLeaderboardKO(head,body){
   let names=Object.keys(KNOCKOUT_PREDS);
   if(prizePoolOnly)names=names.filter(inPrizePool);
-  head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th>Name</th><th class="r">Knockout</th><th class="r" title="Highest knockout score still possible — points earned plus the most still earnable">Max</th></tr>`;
+  head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change from the most recent knockout result">Move</th><th>Name</th><th class="r">Knockout</th><th class="r" title="Highest knockout score still possible — points earned plus the most still earnable">Max</th></tr>`;
   if(names.length===0){
-    body.innerHTML=`<tr><td colspan="4" style="text-align:center;color:var(--text-secondary);padding:20px 12px;line-height:1.6">🏟️ Knockout standings appear once Round-of-32 picks lock.<br><span style="font-size:12px">Bracket closes Sun June 28, 12:00 PM PST.</span></td></tr>`;
+    body.innerHTML=`<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);padding:20px 12px;line-height:1.6">🏟️ Knockout standings appear once Round-of-32 picks lock.<br><span style="font-size:12px">Bracket closes Sun June 28, 12:00 PM PST.</span></td></tr>`;
     return;
   }
   const ranked=names.map(n=>({n,ko:scoreKnockout(n),rem:maxRemaining(n)})).sort((a,b)=>b.ko-a.ko);
+  // Move = rank change caused by the most recent knockout result.
+  const last=lastKoResult();
+  let baseRanks=null;
+  if(last){
+    const base={r32:KO_RESULTS.r32.slice(),r16:KO_RESULTS.r16.slice(),qf:KO_RESULTS.qf.slice(),sf:KO_RESULTS.sf.slice(),final:KO_RESULTS.final};
+    if(last.round==='final')base.final='';else base[last.round][last.idx]='';
+    baseRanks=withKoResults(base,()=>{
+      const tot={};names.forEach(n=>tot[n]=scoreKnockout(n));
+      const rk={};names.forEach(n=>rk[n]=names.filter(m=>tot[m]>tot[n]).length+1);
+      return rk;
+    });
+  }
   let html='';
   ranked.forEach(f=>{
     const rank=ranked.findIndex(x=>x.ko===f.ko)+1;
     const rc=rank===1?'rank-1':rank===2?'rank-2':rank===3?'rank-3':'';
     const medal=rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':'';
+    let move='<span class="move-flat">–</span>';
+    if(baseRanks){const d=baseRanks[f.n]-rank;if(d>0)move=`<span class="move-up">▲${d}</span>`;else if(d<0)move=`<span class="move-down">▼${-d}</span>`;}
     const nm=f.n.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="name-cell"><span class="name-link" onclick="viewPred('${nm}')">${esc(f.n)}</span></td><td class="pts-cell">${f.ko}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td><td class="sub-cell">${f.ko+f.rem}</td></tr>`;
+    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="move-cell">${move}</td><td class="name-cell"><span class="name-link" onclick="viewPred('${nm}')">${esc(f.n)}</span></td><td class="pts-cell">${f.ko}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td><td class="sub-cell">${f.ko+f.rem}</td></tr>`;
   });
   body.innerHTML=html;
 }
