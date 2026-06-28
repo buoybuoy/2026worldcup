@@ -134,7 +134,10 @@
     border-radius: var(--radius);
     overflow: hidden;
   }
-  .lb-toggle { display: inline-flex; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .lb-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+  .lb-prize { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text-secondary); cursor: pointer; user-select: none; }
+  .lb-prize input { cursor: pointer; margin: 0; }
+  .lb-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
   .lb-toggle-btn { font-size: 12px; font-weight: 600; padding: 6px 14px; background: var(--bg-card); color: var(--text-secondary); border: none; cursor: pointer; transition: background .15s, color .15s; }
   .lb-toggle-btn + .lb-toggle-btn { border-left: 1px solid var(--border); }
   .lb-toggle-btn.active { background: var(--green); color: #fff; }
@@ -460,9 +463,12 @@
   <div id="tab-leaderboard" class="tab-panel active">
     <div id="last-updated-line" style="font-size:12px;color:var(--text-secondary);text-align:right;min-height:16px;"></div>
     <div id="last-game-line" style="font-size:12px;color:var(--text-secondary);text-align:right;margin-bottom:6px;min-height:16px;"></div>
-    <div class="lb-toggle">
-      <button id="lb-tab-overall" class="lb-toggle-btn active" onclick="setLeaderboardMode('overall')">Overall</button>
-      <button id="lb-tab-ko" class="lb-toggle-btn" onclick="setLeaderboardMode('ko')">🏟️ Knockout only</button>
+    <div class="lb-controls">
+      <div class="lb-toggle">
+        <button id="lb-tab-overall" class="lb-toggle-btn active" onclick="setLeaderboardMode('overall')">Overall</button>
+        <button id="lb-tab-ko" class="lb-toggle-btn" onclick="setLeaderboardMode('ko')">🏟️ Knockout only</button>
+      </div>
+      <label class="lb-prize"><input type="checkbox" id="lb-prize" onchange="setPrizeFilter(this.checked)"> 💰 Prize pool only</label>
     </div>
     <div class="leaderboard-card">
       <table class="leaderboard-table">
@@ -712,6 +718,10 @@ const KNOCKOUT_LATER={
 };
 
 const FRIEND_NAMES = ['Janice','Francisco','Matt','Rem','Tiffany KL','Mr.','대한민국 남바원','Robert','Anish','Emily','Vikram','David','Dan','Ha-Mi','光榮的人民主席 Chairman Lau'];
+// Cash prize-pool participants. Anyone NOT listed here is excluded from the
+// "💰 Prize pool only" leaderboard filter (defaults to everyone opting in).
+const PRIZE_POOL_OUT = ['Mr.','Emily'];
+function inPrizePool(name){ return !PRIZE_POOL_OUT.includes(name); }
 const CONFIRMED_SCORES = {'A|Mexico|Czechia':['3','0'],'A|Mexico|South Africa':['2','0'],'A|Mexico|South Korea':['1','0'],'A|South Africa|Czechia':['1','1'],'A|South Africa|South Korea':['1','0'],'A|South Korea|Czechia':['2','1'],'B|Bosnia and Herzegovina|Qatar':['3','1'],'B|Canada|Bosnia and Herzegovina':['1','1'],'B|Canada|Qatar':['6','0'],'B|Canada|Switzerland':['1','2'],'B|Qatar|Switzerland':['1','1'],'B|Switzerland|Bosnia and Herzegovina':['4','1'],'C|Brazil|Haiti':['3','0'],'C|Brazil|Morocco':['1','1'],'C|Brazil|Scotland':['3','0'],'C|Morocco|Haiti':['4','2'],'C|Scotland|Haiti':['1','0'],'C|Scotland|Morocco':['0','1'],'D|Australia|Paraguay':['0','0'],'D|Australia|Türkiye':['2','0'],'D|Paraguay|Türkiye':['1','0'],'D|USA|Australia':['2','0'],'D|USA|Paraguay':['4','1'],'D|USA|Türkiye':['2','3'],'E|Ecuador|Curaçao':['0','0'],'E|Ecuador|Ivory Coast':['0','1'],'E|Germany|Curaçao':['7','1'],'E|Germany|Ecuador':['1','2'],'E|Germany|Ivory Coast':['2','1'],'E|Ivory Coast|Curaçao':['2','0'],'F|Japan|Sweden':['1','1'],'F|Japan|Tunisia':['4','0'],'F|Netherlands|Japan':['2','2'],'F|Netherlands|Sweden':['5','1'],'F|Netherlands|Tunisia':['3','1'],'F|Tunisia|Sweden':['1','5'],'G|Belgium|Egypt':['1','1'],'G|Belgium|Iran':['0','0'],'G|Belgium|New Zealand':['5','1'],'G|Egypt|Iran':['1','1'],'G|Egypt|New Zealand':['3','1'],'G|Iran|New Zealand':['2','2'],'H|Saudi Arabia|Cape Verde':['0','0'],'H|Spain|Cape Verde':['0','0'],'H|Spain|Saudi Arabia':['4','0'],'H|Spain|Uruguay':['1','0'],'H|Uruguay|Cape Verde':['2','2'],'H|Uruguay|Saudi Arabia':['1','1'],'I|France|Iraq':['3','0'],'I|France|Norway':['4','1'],'I|France|Senegal':['3','1'],'I|Iraq|Norway':['1','4'],'I|Senegal|Iraq':['5','0'],'I|Senegal|Norway':['2','3'],'J|Algeria|Jordan':['2','1'],'J|Argentina|Algeria':['3','0'],'J|Argentina|Austria':['2','0'],'J|Austria|Jordan':['3','1'],'K|Colombia|DR Congo':['1','0'],'K|Portugal|DR Congo':['1','1'],'K|Portugal|Uzbekistan':['5','0'],'K|Uzbekistan|Colombia':['1','3'],'L|Croatia|Ghana':['2','1'],'L|England|Croatia':['4','2'],'L|England|Ghana':['0','0'],'L|England|Panama':['2','0'],'L|Panama|Croatia':['0','1'],'L|Panama|Ghana':['0','1']};
 const POS_PTS=[25,15,10,5];
 // ===== Knockout bracket predictions (DRAFT) =====
@@ -1231,11 +1241,6 @@ function withScores(map,fn){
   Object.assign(scores,map);
   try{return fn();}finally{Object.keys(scores).forEach(k=>delete scores[k]);Object.assign(scores,backup);}
 }
-function rankMap(){
-  const tot={};FRIEND_NAMES.forEach(n=>tot[n]=totalScore(n));
-  const rk={};FRIEND_NAMES.forEach(n=>rk[n]=FRIEND_NAMES.filter(m=>tot[m]>tot[n]).length+1);
-  return rk;
-}
 let leaderboardMode='overall';
 function setLeaderboardMode(m){
   leaderboardMode=m;
@@ -1244,11 +1249,14 @@ function setLeaderboardMode(m){
   if(ko)ko.classList.toggle('active',m==='ko');
   renderLeaderboard();
 }
+let prizePoolOnly=false;
+function setPrizeFilter(on){prizePoolOnly=on;renderLeaderboard();}
 
 // Knockout-only standings — ranks everyone with a bracket entry (incl. people
 // who join only for the knockouts and aren't in the group-stage roster).
 function renderLeaderboardKO(head,body){
-  const names=Object.keys(KNOCKOUT_PREDS);
+  let names=Object.keys(KNOCKOUT_PREDS);
+  if(prizePoolOnly)names=names.filter(inPrizePool);
   head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th>Name</th><th class="r">Knockout</th></tr>`;
   if(names.length===0){
     body.innerHTML=`<tr><td colspan="3" style="text-align:center;color:var(--text-secondary);padding:20px 12px;line-height:1.6">🏟️ Knockout standings appear once Round-of-32 picks lock.<br><span style="font-size:12px">Bracket closes Sun June 28, 12:00 PM PST.</span></td></tr>`;
@@ -1271,6 +1279,9 @@ function renderLeaderboard(){
   const head=document.getElementById('lb-head'),body=document.getElementById('leaderboard-body');
   if(leaderboardMode==='ko'){renderLeaderboardKO(head,body);return;}
   head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change from the last completed game">Move</th><th>Name</th><th class="c" title="Group finishes + 3rd-place advancement">Group Stage</th><th class="c" title="Knockout bracket points">KO</th><th class="r">Total</th></tr>`;
+  const pool=prizePoolOnly?FRIEND_NAMES.filter(inPrizePool):[...FRIEND_NAMES];
+  // Rank within the displayed pool (so the prize-pool filter renumbers cleanly).
+  const poolRank=()=>{const tot={};pool.forEach(n=>tot[n]=totalScore(n));const rk={};pool.forEach(n=>rk[n]=pool.filter(m=>tot[m]>tot[n]).length+1);return rk;};
   // Move = rank change caused by the most recently completed game: compare
   // current ranks to ranks with that one game removed (re-bases each game).
   const lg=lastCompletedMatch();
@@ -1278,9 +1289,9 @@ function renderLeaderboard(){
   if(lg){
     const baseScores=Object.assign({},scores);
     delete baseScores[lg.g+'|'+lg.h+'|'+lg.a];
-    baseRanks=withScores(baseScores,rankMap);
+    baseRanks=withScores(baseScores,poolRank);
   }
-  const ranked=[...FRIEND_NAMES].map(n=>({n,total:totalScore(n),groupPts:Object.keys(GROUPS).reduce((s,g)=>{const r=scoreGroup(n,g);return s+(r?r.pts:0);},0),tp:scoreThird(n),ko:scoreKnockout(n)})).sort((a,b)=>b.total-a.total);
+  const ranked=pool.map(n=>({n,total:totalScore(n),groupPts:Object.keys(GROUPS).reduce((s,g)=>{const r=scoreGroup(n,g);return s+(r?r.pts:0);},0),tp:scoreThird(n),ko:scoreKnockout(n)})).sort((a,b)=>b.total-a.total);
   let html='';
   ranked.forEach((f,i)=>{
     const rank=ranked.findIndex(x=>x.total===f.total)+1;
