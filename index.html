@@ -1454,7 +1454,9 @@ function renderLeaderboard(){
   const head=document.getElementById('lb-head'),body=document.getElementById('leaderboard-body');
   if(leaderboardMode==='ko'){renderLeaderboardKO(head,body);return;}
   head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change from the last completed game">Move</th><th>Name</th><th class="c" title="Group finishes + 3rd-place advancement">Group Stage</th><th class="c" title="Knockout bracket points">KO</th><th class="r" title="Highest total score still possible — points already secured plus the most still earnable in the knockouts">Max</th><th class="r">Total</th></tr>`;
-  const pool=prizePoolOnly?FRIEND_NAMES.filter(inPrizePool):[...FRIEND_NAMES];
+  // Group-stage roster plus knockout-only entrants (in KNOCKOUT_PREDS only).
+  const roster=[...FRIEND_NAMES,...Object.keys(KNOCKOUT_PREDS).filter(n=>!FRIEND_NAMES.includes(n))];
+  const pool=prizePoolOnly?roster.filter(inPrizePool):roster;
   // Rank within the displayed pool (so the prize-pool filter renumbers cleanly).
   const poolRank=()=>{const tot={};pool.forEach(n=>tot[n]=totalScore(n));const rk={};pool.forEach(n=>rk[n]=pool.filter(m=>tot[m]>tot[n]).length+1);return rk;};
   // Move = rank change caused by the most recently completed game: compare
@@ -1478,7 +1480,7 @@ function renderLeaderboard(){
       if(d>0)move=`<span class="move-up">▲${d}</span>`;
       else if(d<0)move=`<span class="move-down">▼${-d}</span>`;
     }
-    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="move-cell">${move}</td><td class="name-cell"><span class="name-link" onclick="viewPred('${f.n.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">${esc(f.n)}</span></td><td class="sub-cell">${f.groupPts+(f.tp.pending?0:f.tp.pts)} pts</td><td class="sub-cell">${f.ko?f.ko+' pts':'–'}</td><td class="sub-cell">${f.total+f.rem}</td><td class="pts-cell">${f.total}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td></tr>`;
+    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="move-cell">${move}</td><td class="name-cell"><span class="name-link" onclick="viewPred('${f.n.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">${esc(f.n)}</span></td><td class="sub-cell">${FRIENDS_PREDS[f.n]?(f.groupPts+(f.tp.pending?0:f.tp.pts))+' pts':'n/a'}</td><td class="sub-cell">${f.ko?f.ko+' pts':'–'}</td><td class="sub-cell">${f.total+f.rem}</td><td class="pts-cell">${f.total}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td></tr>`;
   });
   document.getElementById('leaderboard-body').innerHTML=html;
 }
