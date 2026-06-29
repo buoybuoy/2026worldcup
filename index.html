@@ -240,12 +240,13 @@
   .kp-pick.inline { display: inline-block; width: auto; padding: 3px 12px; }
   /* per-person bracket: each cell is a matchup (two teams), the pick highlighted */
   .kp-match { width: 100%; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-  .kp-side { font-size: 12px; font-weight: 600; padding: 5px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--bg-card); }
+  .kp-side { font-size: 12px; font-weight: 600; padding: 5px 8px; line-height: 1.3; background: var(--bg-card); }
   .kp-side + .kp-side { border-top: 1px solid var(--border); }
   .kp-side.dim { font-weight: 500; color: var(--text-secondary); }
   .kp-side.picked.pending { background: var(--bg-secondary); }
   .kp-side.picked.correct { background: var(--green-light); color: var(--green-dark); }
-  .kp-side.picked.wrong { background: #f7e4e1; color: #9B2D1F; text-decoration: line-through; }
+  .kp-side.picked.wrong { background: #f7e4e1; color: #9B2D1F; }
+  .kp-corr { color: var(--green-dark); font-weight: 700; margin-left: 4px; }
   .kp-pick.revealed { white-space: normal; display: flex; flex-direction: column; gap: 1px; line-height: 1.2; }
   .kp-miss { font-size: 10px; font-weight: 500; opacity: 0.75; }
   .kp-actual { color: var(--green-dark); }
@@ -1599,10 +1600,9 @@ function renderKnockoutPred(name){
   if(!kp){
     return `<div class="kp-empty">Knockout bracket predictions open once the group stage ends and the Round of 32 is set.<br><span class="kp-legend">Points per correct pick — ${legend}.</span></div>`;
   }
-  // Each cell shows the actual matchup (both teams), the person's pick
-  // highlighted. R32 opponents come from the real bracket; later rounds pair the
-  // person's own previous-round winner picks. Pick is green if its team is a
-  // round winner, struck if knocked out (KO_RESULTS.out), else pending.
+  // Each cell shows a matchup (both teams) with the pick highlighted. When a
+  // predicted team has been knocked out, it's struck through and the team that
+  // actually advanced (the real winner of that bracket position) is shown.
   const out=new Set(KO_RESULTS.out||[]);
   const W={r32:new Set(KO_RESULTS.r32||[]),r16:new Set(KO_RESULTS.r16||[]),qf:new Set(KO_RESULTS.qf||[]),sf:new Set(KO_RESULTS.sf||[])};
   const champ=KO_RESULTS.final||'';
@@ -1612,21 +1612,32 @@ function renderKnockoutPred(name){
     if(round==='final')return champ?(t===champ?'correct':'wrong'):(out.has(t)?'wrong':'pending');
     return W[round].has(t)?'correct':(out.has(t)?'wrong':'pending');
   };
-  const cell=(a,b,pick,round,vert)=>{
-    const side=t=>`<div class="kp-side ${t===pick?'picked '+pickCls(t,round):'dim'}" title="${esc(t||'')}">${t?esc(t):'—'}</div>`;
-    return `<div class="kb-cell"><div class="kp-match">${side(a)}${side(b)}</div>${vert?'<span class="kb-vert"></span>':''}</div>`;
-  };
-  const roundCol=(title,cells)=>`<div class="kb-round"><div class="kb-round-title">${esc(title)}</div>${cells.join('')}</div>`;
   const r32=kp.r32||[],r16=kp.r16||[],qf=kp.qf||[],sf=kp.sf||[];
-  const pairCol=(prev,picks,round,title)=>roundCol(title,(picks||[]).map((p,k)=>cell(prev[2*k],prev[2*k+1],p,round,round!=='final'&&k%2===0)));
+  // Walk the REAL bracket from R32 up, using each match's loser (KO_RESULTS.out)
+  // to know who actually advanced at each position.
+  const win=(x,y)=>!x||!y?'':(out.has(x)&&!out.has(y)?y:(out.has(y)&&!out.has(x)?x:''));
+  const aR32=r32.map(t=>win(t,opp[t]));
+  const aR16=Array.from({length:8},(_,k)=>win(aR32[2*k],aR32[2*k+1]));
+  const aQF=Array.from({length:4},(_,k)=>win(aR16[2*k],aR16[2*k+1]));
+  const aSF=Array.from({length:2},(_,k)=>win(aQF[2*k],aQF[2*k+1]));
+  const roundCol=(title,cells)=>`<div class="kb-round"><div class="kb-round-title">${esc(title)}</div>${cells.join('')}</div>`;
+  const side=(pred,actual,pick,round)=>{
+    const cls=pred===pick?('picked '+pickCls(pred,round)):'dim';
+    const inner=!pred?'—':(out.has(pred)
+      ?`<s>${esc(pred)}</s>${actual&&actual!==pred?`<span class="kp-corr">→ ${esc(actual)}</span>`:''}`
+      :esc(pred));
+    return `<div class="kp-side ${cls}" title="${esc(pred||'')}">${inner}</div>`;
+  };
+  const cell=(pA,aA,pB,aB,pick,round,vert)=>`<div class="kb-cell"><div class="kp-match">${side(pA,aA,pick,round)}${side(pB,aB,pick,round)}</div>${vert?'<span class="kb-vert"></span>':''}</div>`;
   const pts=scoreKnockout(name);
   const maxPts=16*KO_SCORING.R32+8*KO_SCORING.R16+4*KO_SCORING.QF+2*KO_SCORING.SF+KO_SCORING.F;
   let html=`<div class="kp-subtitle">${pts} pts so far · max ${maxPts}</div><div class="kb-scroll"><div class="kb">`;
-  html+=roundCol('R32',r32.map((t,i)=>cell(t,opp[t]||'?',t,'r32',i%2===0)));
-  html+=pairCol(r32,r16,'r16','R16');
-  html+=pairCol(r16,qf,'qf','QF');
-  html+=pairCol(qf,sf,'sf','SF');
-  html+=pairCol(sf,[kp.final||''],'final','Final');
+  // R32: real matchup (pick vs real opponent); the opponent is the actual winner if the pick lost, so no extra correction.
+  html+=roundCol('R32',r32.map((t,i)=>cell(t,'',opp[t]||'?','',t,'r32',i%2===0)));
+  html+=roundCol('R16',r16.map((p,k)=>cell(r32[2*k],aR32[2*k],r32[2*k+1],aR32[2*k+1],p,'r16',k%2===0)));
+  html+=roundCol('QF',qf.map((p,k)=>cell(r16[2*k],aR16[2*k],r16[2*k+1],aR16[2*k+1],p,'qf',k%2===0)));
+  html+=roundCol('SF',sf.map((p,k)=>cell(qf[2*k],aQF[2*k],qf[2*k+1],aQF[2*k+1],p,'sf',k%2===0)));
+  html+=roundCol('Final',[cell(sf[0],aSF[0],sf[1],aSF[1],kp.final||'','final',false)]);
   html+=`</div></div>`;
   return html;
 }
