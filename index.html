@@ -1508,7 +1508,7 @@ function lastKoResult(){
 function renderLeaderboardKO(head,body){
   let names=Object.keys(KNOCKOUT_PREDS);
   if(prizePoolOnly)names=names.filter(inPrizePool);
-  head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th class="c lb-hide-sm" title="Rank change from the most recent knockout result">Move</th><th>Name</th><th class="r">Knockout</th><th class="r" title="Highest knockout score still possible — points earned plus the most still earnable">Max</th></tr>`;
+  head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change from the most recent knockout result">Move</th><th>Name</th><th class="r">Knockout</th><th class="r" title="Highest knockout score still possible — points earned plus the most still earnable">Max</th></tr>`;
   if(names.length===0){
     body.innerHTML=`<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);padding:20px 12px;line-height:1.6">🏟️ Knockout standings appear once Round-of-32 picks lock.<br><span style="font-size:12px">Bracket closes Sun June 28, 12:00 PM PST.</span></td></tr>`;
     return;
@@ -1534,7 +1534,7 @@ function renderLeaderboardKO(head,body){
     let move='<span class="move-flat">–</span>';
     if(baseRanks){const d=baseRanks[f.n]-rank;if(d>0)move=`<span class="move-up">▲${d}</span>`;else if(d<0)move=`<span class="move-down">▼${-d}</span>`;}
     const nm=f.n.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="move-cell lb-hide-sm">${move}</td><td class="name-cell"><span class="name-link" onclick="viewPred('${nm}')">${esc(f.n)}</span></td><td class="pts-cell">${f.ko}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td><td class="sub-cell">${f.ko+f.rem}</td></tr>`;
+    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="move-cell">${move}</td><td class="name-cell"><span class="name-link" onclick="viewPred('${nm}')">${esc(f.n)}</span></td><td class="pts-cell">${f.ko}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td><td class="sub-cell">${f.ko+f.rem}</td></tr>`;
   });
   body.innerHTML=html;
 }
@@ -1543,7 +1543,7 @@ function renderLeaderboard(){
   stampLastUpdated();
   const head=document.getElementById('lb-head'),body=document.getElementById('leaderboard-body');
   if(leaderboardMode==='ko'){renderLeaderboardKO(head,body);return;}
-  head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th class="c lb-hide-sm" title="Rank change from the last completed game">Move</th><th>Name</th><th class="c lb-hide-sm" title="Group finishes + 3rd-place advancement">Group Stage</th><th class="c lb-hide-sm" title="Knockout bracket points">KO</th><th class="r" title="Highest total score still possible — points already secured plus the most still earnable in the knockouts">Max</th><th class="r">Total</th></tr>`;
+  head.innerHTML=`<tr><th style="width:40px;text-align:center">#</th><th class="c" title="Rank change from the last completed game">Move</th><th>Name</th><th class="c lb-hide-sm" title="Group finishes + 3rd-place advancement">Group Stage</th><th class="c lb-hide-sm" title="Knockout bracket points">KO</th><th class="r" title="Highest total score still possible — points already secured plus the most still earnable in the knockouts">Max</th><th class="r">Total</th></tr>`;
   // Group-stage roster plus knockout-only entrants (in KNOCKOUT_PREDS only).
   const roster=[...FRIEND_NAMES,...Object.keys(KNOCKOUT_PREDS).filter(n=>!FRIEND_NAMES.includes(n))];
   const pool=prizePoolOnly?roster.filter(inPrizePool):roster;
@@ -1570,7 +1570,7 @@ function renderLeaderboard(){
       if(d>0)move=`<span class="move-up">▲${d}</span>`;
       else if(d<0)move=`<span class="move-down">▼${-d}</span>`;
     }
-    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="move-cell lb-hide-sm">${move}</td><td class="name-cell"><span class="name-link" onclick="viewPred('${f.n.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">${esc(f.n)}</span></td><td class="sub-cell lb-hide-sm">${FRIENDS_PREDS[f.n]?(f.groupPts+(f.tp.pending?0:f.tp.pts))+' pts':'n/a'}</td><td class="sub-cell lb-hide-sm">${f.ko?f.ko+' pts':'–'}</td><td class="sub-cell">${f.total+f.rem}</td><td class="pts-cell">${f.total}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td></tr>`;
+    html+=`<tr class="${rc}"><td class="rank-cell">${medal||rank}</td><td class="move-cell">${move}</td><td class="name-cell"><span class="name-link" onclick="viewPred('${f.n.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">${esc(f.n)}</span></td><td class="sub-cell lb-hide-sm">${FRIENDS_PREDS[f.n]?(f.groupPts+(f.tp.pending?0:f.tp.pts))+' pts':'n/a'}</td><td class="sub-cell lb-hide-sm">${f.ko?f.ko+' pts':'–'}</td><td class="sub-cell">${f.total+f.rem}</td><td class="pts-cell">${f.total}<span style="font-size:13px;color:var(--text-secondary);font-family:Inter,sans-serif"> pts</span></td></tr>`;
   });
   document.getElementById('leaderboard-body').innerHTML=html;
 }
