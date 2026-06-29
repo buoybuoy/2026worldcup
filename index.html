@@ -738,7 +738,7 @@ const POS_PTS=[25,15,10,5];
 const KO_SCORING={R32:25,R16:50,QF:100,SF:200,F:400};
 // Actual knockout winners, by round in bracket (tree) order. The bot will fill
 // these once knockout games are played; empty until then.
-const KO_RESULTS={r32:['Canada'],r16:[],qf:[],sf:[],final:''};
+const KO_RESULTS={r32:['Canada'],r16:[],qf:[],sf:[],final:'',out:['South Africa']};
 // Each participant's bracket picks: winners by round in bracket order
 // (R32: 16, R16: 8, QF: 4, SF: 2, final). Filled once the Round of 32 is set
 // and participants submit their brackets.
@@ -885,19 +885,14 @@ function scoreKnockout(name){
 
 // All 32 Round-of-32 teams (resolved from final group standings).
 function allR32Teams(){const s=new Set();KNOCKOUT_R32.forEach(m=>{const[h,a]=r32Teams(m.slot);if(h)s.add(h);if(a)s.add(a);});return s;}
-// Teams still able to advance, derived from KO_RESULTS: prune to a round's
-// winners only once that round is complete (stay optimistic mid-round).
+// Teams still alive = all Round-of-32 teams minus those knocked out (the loser
+// of each completed knockout match is recorded in KO_RESULTS.out), so a team is
+// pruned the moment it loses rather than waiting for the round to finish.
 function koAliveSet(){
-  const order=[['r32',16],['r16',8],['qf',4],['sf',2],['final',1]];
-  let survivors=allR32Teams();
-  for(const[r,n] of order){
-    const arr=r==='final'?(KO_RESULTS.final?[KO_RESULTS.final]:[]):(KO_RESULTS[r]||[]);
-    const winners=arr.filter(Boolean);
-    if(winners.length===0)break;            // round not started → keep survivors
-    if(winners.length>=n)survivors=new Set(winners); // complete → prune to winners
-    else break;                             // mid-round → keep survivors until it finishes
-  }
-  return survivors;
+  const out=new Set(KO_RESULTS.out||[]);
+  const s=new Set();
+  allR32Teams().forEach(t=>{if(!out.has(t))s.add(t);});
+  return s;
 }
 // Max knockout points a participant can still earn: each not-yet-decided pick
 // whose team is still alive, worth that round's value.
@@ -1149,8 +1144,11 @@ async function fetchLiveScores(){
               if(winTeam===home)winner=ko.swapped?'a':'h';else if(winTeam===away)winner=ko.swapped?'h':'a';
               newLive[ko.key]={state:kst,score:kscore,clock:comp.status.type.shortDetail||'',winner};
             }
-            // Record the round winner into KO_RESULTS so the leaderboard updates.
+            // Record the round winner + the eliminated team into KO_RESULTS.
             if(done&&winTeam){
+              const loser=winTeam===home?away:home;
+              const out=KO_RESULTS.out||(KO_RESULTS.out=[]);
+              if(!out.includes(loser)){out.push(loser);scoresChanged=true;}
               const round=koRoundForTeams(home,away);
               if(round==='final'){
                 if(KO_RESULTS.final!==winTeam){KO_RESULTS.final=winTeam;scoresChanged=true;}

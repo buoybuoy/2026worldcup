@@ -75,8 +75,11 @@ def _ko_wins(ko, team):
 
 def record_ko(ko, home, away, winner):
     """Record a completed knockout winner into the round inferred from how many
-    rounds each team has already won. Skips the 3rd-place playoff (whose inferred
-    round is already full)."""
+    rounds each team has already won, and the loser into the eliminated set.
+    Skips the 3rd-place playoff winner (whose inferred round is already full)."""
+    loser = away if winner == home else home
+    if loser not in ko['out']:
+        ko['out'].append(loser)
     rd = KO_ROUND_ORDER[min(_ko_wins(ko, home), _ko_wins(ko, away))]
     if rd == 'final':
         ko['final'] = winner
@@ -104,7 +107,7 @@ def find_match_key(home, away):
 def fetch_all():
     """Return (scores, times, dates, scorers, channels, ko_results)."""
     scores, times, dates, scorers, channels = {}, {}, {}, {}, {}
-    ko_results = {'r32': [], 'r16': [], 'qf': [], 'sf': [], 'final': ''}
+    ko_results = {'r32': [], 'r16': [], 'qf': [], 'sf': [], 'final': '', 'out': []}
     start = date(2026, 6, 11)
     end = date(2026, 7, 19)  # through the final, so the golden boot keeps tallying
     current = start
@@ -244,9 +247,10 @@ def update_html(filepath, scores, times, dates, scorers, channels, ko_results):
     # 5) KO_RESULTS — knockout winners per round, full rewrite
     def arr(lst):
         return '[' + ','.join("'%s'" % esc(t) for t in lst) + ']'
-    ko_js = '{r32:%s,r16:%s,qf:%s,sf:%s,final:%s}' % (
+    ko_js = '{r32:%s,r16:%s,qf:%s,sf:%s,final:%s,out:%s}' % (
         arr(ko_results['r32']), arr(ko_results['r16']), arr(ko_results['qf']),
         arr(ko_results['sf']), ("'%s'" % esc(ko_results['final'])) if ko_results['final'] else "''",
+        arr(ko_results['out']),
     )
     content = re.sub(r'const KO_RESULTS=\{[^}]*\};', f'const KO_RESULTS={ko_js};', content)
 
