@@ -1592,18 +1592,17 @@ function renderKnockoutPred(name){
     return `<div class="kp-empty">Knockout bracket predictions open once the group stage ends and the Round of 32 is set.<br><span class="kp-legend">Points per correct pick — ${legend}.</span></div>`;
   }
   const R=KO_RESULTS||{};
-  const col=(title,picks,res)=>{
+  const out=new Set(R.out||[]);
+  // Membership-based: a pick is correct if its team is among that round's
+  // winners, wrong (struck) if the team has been knocked out, else pending.
+  const col=(title,picks,winnersList)=>{
+    const won=new Set((winnersList||[]).filter(Boolean));
     let h=`<div class="kb-round"><div class="kb-round-title">${esc(title)}</div>`;
     picks.forEach((team,i)=>{
-      const actual=res&&res[i];
-      const cls=actual?(team===actual?'correct':'wrong'):'pending';
+      const cls=!team?'pending':won.has(team)?'correct':out.has(team)?'wrong':'pending';
       const vert=(i%2===0&&picks.length>1)?'<span class="kb-vert"></span>':'';
-      // Once this slot's result is in, strike a wrong pick and reveal who advanced.
-      const reveal=actual&&team&&team!==actual;
-      const inner=reveal
-        ?`<span class="kp-miss"><s>${esc(team)}</s></span><span class="kp-actual">${esc(actual)}</span>`
-        :(team?esc(team):'—');
-      h+=`<div class="kb-cell"><div class="kp-pick ${cls}${reveal?' revealed':''}" title="${esc(team||'')}">${inner}</div>${vert}</div>`;
+      const inner=team?(cls==='wrong'?`<s>${esc(team)}</s>`:esc(team)):'—';
+      h+=`<div class="kb-cell"><div class="kp-pick ${cls}" title="${esc(team||'')}">${inner}</div>${vert}</div>`;
     });
     return h+'</div>';
   };
@@ -1614,7 +1613,7 @@ function renderKnockoutPred(name){
   html+=col('R16',kp.r16||[],R.r16);
   html+=col('QF',kp.qf||[],R.qf);
   html+=col('SF',kp.sf||[],R.sf);
-  html+=col('Champion',[kp.final||''],R.final?[R.final]:null);
+  html+=col('Champion',[kp.final||''],R.final?[R.final]:[]);
   html+=`</div></div>`;
   return html;
 }
