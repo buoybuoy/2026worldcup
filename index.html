@@ -423,6 +423,7 @@
   .kb-team.kb-won .kb-goals { color: var(--green-dark); }
   .kb-compact .kb-goals { font-size: 14px; margin-left: 4px; }
   .kb-in { color: var(--green); font-weight: 700; font-size: 11px; }
+  .kb-x { color: var(--red-dark); font-weight: 700; font-size: 11px; }
   .kb-team.kb-3rd { align-items: flex-start; }
   .kb-3rd-list { font-size: 10px; line-height: 1.35; color: var(--text); }
   .kb-3rd-tag { display: block; font-size: 9px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; }
@@ -1654,9 +1655,11 @@ function renderKnockoutPred(name){
     if(!pred)return `<div class="kb-team"><span class="kb-team-name tbd">—</span></div>`;
     const isPick=pred===pick, elim=out.has(pred);
     const correct=isPick&&(round==='final'?pred===champ:W[round].has(pred));
+    const wrong=isPick&&!correct&&elim;  // pick's team is out and didn't win this round
     const cls=[isPick?'kp-pick':'',correct?'kb-won':'',elim?'kb-lost':''].filter(Boolean).join(' ');
     const body=elim?`<s>${esc(pred)}</s>${actual&&actual!==pred?`<span class="kp-corr">→ ${esc(actual)}</span>`:''}`:esc(pred);
-    return `<div class="kb-team ${cls}"><span class="kb-team-name">${body}${correct?' <span class="kb-in" title="Correct">✓</span>':''}</span>${goals!=null?`<span class="kb-goals">${goals}</span>`:''}</div>`;
+    const mark=correct?' <span class="kb-in" title="Correct">✓</span>':wrong?' <span class="kb-x" title="Wrong">✗</span>':'';
+    return `<div class="kb-team ${cls}"><span class="kb-team-name">${body}${mark}</span>${goals!=null?`<span class="kb-goals">${goals}</span>`:''}</div>`;
   };
   // actual teams at the box's two positions (for the real score)
   const mbox=(m,pA,aA,pB,aB,pick,round)=>{
