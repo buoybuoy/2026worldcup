@@ -429,6 +429,18 @@
   .kb-third { margin-top: 20px; }
   .kb-third .kb-round-title { text-align: left; }
   .kb-third .kb-box { max-width: 280px; }
+  /* compact bracket (per-person predictions) — fits all rounds incl. Champion */
+  .kb-compact .kb-round { min-width: 112px; padding-right: 14px; }
+  .kb-compact .kb-round-title { font-size: 13px; padding: 2px 0 6px; }
+  .kb-compact .kb-box { padding: 4px 6px; }
+  .kb-compact .kb-box-head { font-size: 8px; margin-bottom: 2px; }
+  .kb-compact .kb-box-foot { display: none; }
+  .kb-compact .kb-team { padding: 1px 0; }
+  .kb-compact .kb-team-name { font-size: 11px; }
+  .kb-compact .kp-corr { margin-left: 2px; font-size: 10px; }
+  .kb-compact .kb-vert { transform: translateX(7px); }
+  .kb-compact .kb-round:not(:last-child) .kb-cell::after { width: 7px; }
+  .kb-compact .kb-round:not(:first-child) .kb-cell::before { width: 7px; }
   @media (max-width: 600px) {
     .kb-round { min-width: 148px; padding-right: 22px; }
     .kb-vert { transform: translateX(11px); }
@@ -1625,7 +1637,7 @@ function renderKnockoutPred(name){
   const pairBoxes=(arr,prev,prevAct,picks,round)=>arr.map((m,k)=>mbox(m,prev[2*k],prevAct[2*k],prev[2*k+1],prevAct[2*k+1],picks[k]||'',round));
   const pts=scoreKnockout(name);
   const maxPts=16*KO_SCORING.R32+8*KO_SCORING.R16+4*KO_SCORING.QF+2*KO_SCORING.SF+KO_SCORING.F;
-  let html=`<div class="kp-subtitle">${pts} pts so far · max ${maxPts}</div><div class="kb-scroll"><div class="kb">`;
+  let html=`<div class="kp-subtitle">${pts} pts so far · max ${maxPts}</div><div class="kb-scroll"><div class="kb kb-compact">`;
   html+=koColumn('Round of 32',r32boxes,false);
   html+=koColumn('Round of 16',pairBoxes(KNOCKOUT_LATER.R16,r32,A.r32w,r16,'r16'),false);
   html+=koColumn('Quarterfinals',pairBoxes(KNOCKOUT_LATER.QF,r16,A.r16w,qf,'qf'),false);
