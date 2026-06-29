@@ -108,6 +108,7 @@ def fetch_all():
     """Return (scores, times, dates, scorers, channels, ko_results)."""
     scores, times, dates, scorers, channels = {}, {}, {}, {}, {}
     ko_results = {'r32': [], 'r16': [], 'qf': [], 'sf': [], 'final': '', 'out': []}
+    ko_scores = {}
     start = date(2026, 6, 11)
     end = date(2026, 7, 19)  # through the final, so the golden boot keeps tallying
     current = start
@@ -156,11 +157,16 @@ def fetch_all():
                     # Cross-group match = knockout. Record the winner by round.
                     # (Dates are processed in order, so earlier rounds land first.)
                     if comp['status']['type'].get('completed'):
+                        hg = int(float(home_data['score']))
+                        ag = int(float(away_data['score']))
+                        pair = sorted([home, away])
+                        goals = {home: hg, away: ag}
+                        ko_scores['|'.join(pair)] = '%d-%d' % (goals[pair[0]], goals[pair[1]])
                         winner = (home if home_data.get('winner')
                                   else away if away_data.get('winner') else None)
                         if winner:
                             record_ko(ko_results, home, away, winner)
-                            print(f'  KO {winner} advances ({home} vs {away})')
+                            print(f'  KO {winner} advances ({home} {hg}-{ag} {away})')
                         else:
                             print(f'  KO no winner flag: {home} vs {away}')
                     continue
@@ -191,10 +197,10 @@ def fetch_all():
 
         current += timedelta(days=1)
 
-    return scores, times, dates, scorers, channels, ko_results
+    return scores, times, dates, scorers, channels, ko_results, ko_scores
 
 
-def update_html(filepath, scores, times, dates, scorers, channels, ko_results):
+def update_html(filepath, scores, times, dates, scorers, channels, ko_results, ko_scores):
     with open(filepath, encoding='utf-8') as f:
         content = f.read()
     original = content
@@ -254,6 +260,12 @@ def update_html(filepath, scores, times, dates, scorers, channels, ko_results):
     )
     content = re.sub(r'const KO_RESULTS=\{[^}]*\};', f'const KO_RESULTS={ko_js};', content)
 
+    # 6) KO_SCORES — knockout final scores, flat {sortedPair:'g0-g1'}
+    ko_scores_js = '{' + ','.join(
+        "'%s':'%s'" % (esc(k), v) for k, v in sorted(ko_scores.items())
+    ) + '}'
+    content = re.sub(r'const KO_SCORES=\{[^}]*\};', f'const KO_SCORES={ko_scores_js};', content)
+
     if content == original:
         print('No changes to index.html.')
         return False
@@ -267,8 +279,9 @@ def update_html(filepath, scores, times, dates, scorers, channels, ko_results):
 
 if __name__ == '__main__':
     print('Fetching scores, kickoff times, scorers, and channels...')
-    scores, times, dates, scorers, channels, ko_results = fetch_all()
+    scores, times, dates, scorers, channels, ko_results, ko_scores = fetch_all()
     ko_n = sum(len(ko_results[r]) for r in ('r32', 'r16', 'qf', 'sf')) + (1 if ko_results['final'] else 0)
     print(f'Found {len(scores)} completed matches, {len(times)} scheduled kickoffs, '
-          f'{len(scorers)} scorers, {len(channels)} channels, {ko_n} knockout results.')
-    update_html('index.html', scores, times, dates, scorers, channels, ko_results)
+          f'{len(scorers)} scorers, {len(channels)} channels, {ko_n} knockout results, '
+          f'{len(ko_scores)} knockout scores.')
+    update_html('index.html', scores, times, dates, scorers, channels, ko_results, ko_scores)

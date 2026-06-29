@@ -413,12 +413,15 @@
   .kb-box-head { font-size: 9px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .kb-team { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 2px 0; }
   .kb-team + .kb-team { border-top: 1px solid var(--border); }
-  .kb-team-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kb-team-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
   .kb-team-name.tbd { color: var(--text-secondary); font-weight: 500; font-size: 12px; }
   .kb-team.clinched .kb-team-name { color: var(--green-dark); }
   .kb-team.kb-won .kb-team-name { color: var(--green-dark); }
   .kb-team.kb-lost .kb-team-name { color: var(--text-secondary); font-weight: 500; }
   .kb-team.kp-pick .kb-team-name { font-weight: 700; }
+  .kb-goals { font-family: 'Teko', sans-serif; font-size: 17px; font-weight: 600; color: var(--text-secondary); flex-shrink: 0; line-height: 1; margin-left: 6px; }
+  .kb-team.kb-won .kb-goals { color: var(--green-dark); }
+  .kb-compact .kb-goals { font-size: 14px; margin-left: 4px; }
   .kb-in { color: var(--green); font-weight: 700; font-size: 11px; }
   .kb-team.kb-3rd { align-items: flex-start; }
   .kb-3rd-list { font-size: 10px; line-height: 1.35; color: var(--text); }
@@ -772,6 +775,9 @@ const KO_SCORING={R32:25,R16:50,QF:100,SF:200,F:400};
 // Actual knockout winners, by round in bracket (tree) order. The bot will fill
 // these once knockout games are played; empty until then.
 const KO_RESULTS={r32:['Canada'],r16:[],qf:[],sf:[],final:'',out:['South Africa']};
+// Knockout final scores, keyed by the two teams sorted & joined with '|',
+// value "g0-g1" in that sorted order. Filled by the bot + live poller.
+const KO_SCORES={'Canada|South Africa':'1-0'};
 // Each participant's bracket picks: winners by round in bracket order
 // (R32: 16, R16: 8, QF: 4, SF: 2, final). Filled once the Round of 32 is set
 // and participants submit their brackets.
@@ -1180,6 +1186,12 @@ async function fetchLiveScores(){
               let winner=null;
               if(winTeam===home)winner=ko.swapped?'a':'h';else if(winTeam===away)winner=ko.swapped?'h':'a';
               newLive[ko.key]={state:kst,score:kscore,clock:comp.status.type.shortDetail||'',winner};
+            }
+            // Record the knockout final score (keyed by sorted team pair).
+            if(done){
+              const pr=[home,away].slice().sort(),gm={};gm[home]=khs;gm[away]=kas;
+              const sv=gm[pr[0]]+'-'+gm[pr[1]];
+              if(KO_SCORES[pr.join('|')]!==sv){KO_SCORES[pr.join('|')]=sv;scoresChanged=true;}
             }
             // Record the round winner + the eliminated team into KO_RESULTS.
             if(done&&winTeam){
@@ -1636,16 +1648,21 @@ function renderKnockoutPred(name){
   const W={r32:new Set(KO_RESULTS.r32||[]),r16:new Set(KO_RESULTS.r16||[]),qf:new Set(KO_RESULTS.qf||[]),sf:new Set(KO_RESULTS.sf||[])};
   const champ=KO_RESULTS.final||'';
   const r32=kp.r32||[],r16=kp.r16||[],qf=kp.qf||[],sf=kp.sf||[];
-  // Pending teams stay black; only completed picks color (green/strike).
-  const row=(pred,actual,pick,round)=>{
+  // Pending teams stay black; only completed picks color (green/strike). goals =
+  // that bracket position's real score (null if the match hasn't been played).
+  const row=(pred,actual,pick,round,goals)=>{
     if(!pred)return `<div class="kb-team"><span class="kb-team-name tbd">—</span></div>`;
     const isPick=pred===pick, elim=out.has(pred);
     const correct=isPick&&(round==='final'?pred===champ:W[round].has(pred));
     const cls=[isPick?'kp-pick':'',correct?'kb-won':'',elim?'kb-lost':''].filter(Boolean).join(' ');
     const body=elim?`<s>${esc(pred)}</s>${actual&&actual!==pred?`<span class="kp-corr">→ ${esc(actual)}</span>`:''}`:esc(pred);
-    return `<div class="kb-team ${cls}"><span class="kb-team-name">${body}${correct?' <span class="kb-in" title="Correct">✓</span>':''}</span></div>`;
+    return `<div class="kb-team ${cls}"><span class="kb-team-name">${body}${correct?' <span class="kb-in" title="Correct">✓</span>':''}</span>${goals!=null?`<span class="kb-goals">${goals}</span>`:''}</div>`;
   };
-  const mbox=(m,pA,aA,pB,aB,pick,round)=>koBox('',row(pA,aA,pick,round)+row(pB,aB,pick,round),m,'');
+  // actual teams at the box's two positions (for the real score)
+  const mbox=(m,pA,aA,pB,aB,pick,round)=>{
+    const actA=round==='r32'?pA:aA,actB=round==='r32'?pB:aB,sc=koScore(actA,actB);
+    return koBox('',row(pA,aA,pick,round,sc?sc[0]:null)+row(pB,aB,pick,round,sc?sc[1]:null),m,'');
+  };
   const r32boxes=KO_R32_ORDER.map((num,i)=>mbox(A.map[num],A.r32m[i][0],'',A.r32m[i][1],'',r32[i],'r32'));
   const pairBoxes=(arr,prev,prevAct,picks,round)=>arr.map((m,k)=>mbox(m,prev[2*k],prevAct[2*k],prev[2*k+1],prevAct[2*k+1],picks[k]||'',round));
   const pts=scoreKnockout(name);
@@ -1879,6 +1896,14 @@ function koBox(head,rows,m,cls){return `<div class="kb-box${cls?' '+cls:''}">${h
 function koColumn(title,boxes,isLast){let h=`<div class="kb-round"><div class="kb-round-title">${esc(title)}</div>`;boxes.forEach((bx,i)=>{h+=`<div class="kb-cell">${bx}${(!isLast&&i%2===0)?'<span class="kb-vert"></span>':''}</div>`;});return h+'</div>';}
 // Winner of a matchup from KO_RESULTS.out (loser set); '' if undecided/unknown.
 function koWinner(x,y){const out=KO_RESULTS.out||[];return !x||!y?'':(out.includes(x)&&!out.includes(y)?y:(out.includes(y)&&!out.includes(x)?x:''));}
+// Final score of a knockout match as [goalsA, goalsB], or null if unknown.
+function koScore(a,b){
+  if(!a||!b)return null;
+  const s=[a,b].slice().sort(),v=KO_SCORES[s.join('|')];
+  if(!v)return null;
+  const p=v.split('-').map(Number),m={};m[s[0]]=p[0];m[s[1]]=p[1];
+  return [m[a],m[b]];
+}
 // Real bracket resolved from final group standings (R32 matchups) + results.
 function koActual(){
   const map={};KNOCKOUT_R32.forEach(m=>map[m.num]=m);
@@ -1895,12 +1920,12 @@ function renderKnockout(){
   const el=document.getElementById('knockout-content');el.innerHTML='';
   const A=koActual();
   // a team in an actual-result match: win (advanced) / lost (struck) / pending; '' name → "Winner M##"
-  const row=(name,winner,feeder)=>{
+  const row=(name,winner,feeder,goals)=>{
     if(!name)return `<div class="kb-team"><span class="kb-team-name tbd">Winner ${feeder}</span></div>`;
     const won=name===winner,lost=winner&&name!==winner;
-    return `<div class="kb-team${won?' kb-won':lost?' kb-lost':''}"><span class="kb-team-name">${lost?`<s>${esc(name)}</s>`:esc(name)}${won?' <span class="kb-in" title="Advanced">✓</span>':''}</span></div>`;
+    return `<div class="kb-team${won?' kb-won':lost?' kb-lost':''}"><span class="kb-team-name">${lost?`<s>${esc(name)}</s>`:esc(name)}${won?' <span class="kb-in" title="Advanced">✓</span>':''}</span>${goals!=null?`<span class="kb-goals">${goals}</span>`:''}</div>`;
   };
-  const mbox=(m,a,b,winner,feeders)=>koBox(koMatchHead(m),row(a,winner,feeders&&feeders[0])+row(b,winner,feeders&&feeders[1]),m,winner?'done':'');
+  const mbox=(m,a,b,winner,feeders)=>{const sc=koScore(a,b);return koBox(koMatchHead(m),row(a,winner,feeders&&feeders[0],sc?sc[0]:null)+row(b,winner,feeders&&feeders[1],sc?sc[1]:null),m,winner?'done':'');};
   const r32boxes=KO_R32_ORDER.map((num,i)=>mbox(A.map[num],A.r32m[i][0],A.r32m[i][1],A.r32w[i]));
   const later=(arr,winners,feedW)=>arr.map((m,k)=>mbox(m,feedW[2*k]||'',feedW[2*k+1]||'',winners[k],m.f));
   let html='<div class="kb-scroll"><div class="kb">';
