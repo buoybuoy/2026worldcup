@@ -438,6 +438,8 @@
   .kb-compact .kb-team { padding: 1px 0; }
   .kb-compact .kb-team-name { font-size: 11px; }
   .kb-compact .kp-corr { margin-left: 2px; font-size: 10px; }
+  .kb-compact .kb-champ { border-color: var(--gold); }
+  .kb-compact .kb-champ .kb-box-head { font-size: 11px; font-weight: 700; color: var(--gold-dark); text-align: center; margin-bottom: 4px; }
   .kb-compact .kb-vert { transform: translateX(7px); }
   .kb-compact .kb-round:not(:last-child) .kb-cell::after { width: 7px; }
   .kb-compact .kb-round:not(:first-child) .kb-cell::before { width: 7px; }
@@ -1632,7 +1634,7 @@ function renderKnockoutPred(name){
     const body=elim?`<s>${esc(pred)}</s>${actual&&actual!==pred?`<span class="kp-corr">→ ${esc(actual)}</span>`:''}`:esc(pred);
     return `<div class="kb-team ${cls}"><span class="kb-team-name">${body}${correct?' <span class="kb-in" title="Correct">✓</span>':''}</span></div>`;
   };
-  const mbox=(m,pA,aA,pB,aB,pick,round)=>koBox(koMatchHead(m),row(pA,aA,pick,round)+row(pB,aB,pick,round),m,'');
+  const mbox=(m,pA,aA,pB,aB,pick,round)=>koBox('',row(pA,aA,pick,round)+row(pB,aB,pick,round),m,'');
   const r32boxes=KO_R32_ORDER.map((num,i)=>mbox(A.map[num],A.r32m[i][0],'',A.r32m[i][1],'',r32[i],'r32'));
   const pairBoxes=(arr,prev,prevAct,picks,round)=>arr.map((m,k)=>mbox(m,prev[2*k],prevAct[2*k],prev[2*k+1],prevAct[2*k+1],picks[k]||'',round));
   const pts=scoreKnockout(name);
@@ -1648,8 +1650,8 @@ function renderKnockoutPred(name){
   const champCorrect=!!fin&&fin===champ, champElim=out.has(fin);
   const champCls=['kp-pick',champCorrect?'kb-won':'',champElim?'kb-lost':''].filter(Boolean).join(' ');
   const champBody=champElim?`<s>${esc(fin)}</s>${champ&&champ!==fin?`<span class="kp-corr">→ ${esc(champ)}</span>`:''}`:(fin?esc(fin):'—');
-  const champBox=`<div class="kb-box"><div class="kb-team ${champCls}"><span class="kb-team-name">${champBody}${champCorrect?' <span class="kb-in" title="Correct">✓</span>':''}</span></div></div>`;
-  html+=koColumn('🏆 Champion',[champBox],true);
+  const champBox=koBox('🏆 Champion',`<div class="kb-team ${champCls}"><span class="kb-team-name">${champBody}${champCorrect?' <span class="kb-in" title="Correct">✓</span>':''}</span></div>`,null,'kb-champ');
+  html+=koColumn('',[champBox],true);
   html+=`</div></div>`;
   return html;
 }
@@ -1862,7 +1864,7 @@ const KO_R32_ORDER=[74,77,73,75,83,84,81,82,76,78,79,80,86,88,85,87];  // bracke
 function koShortDate(d){const dt=new Date(d+'T12:00:00');const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return m[dt.getMonth()]+' '+dt.getDate();}
 function koShortTime(t){const[h,mn]=t.split(':').map(Number);const ap=h>=12?'PM':'AM';const h12=h%12||12;return mn?`${h12}:${String(mn).padStart(2,'0')} ${ap}`:`${h12} ${ap}`;}
 function koMatchHead(m){return `M${m.num} · ${koShortDate(m.date)} · ${koShortTime(m.time)}`;}
-function koBox(head,rows,m,cls){return `<div class="kb-box${cls?' '+cls:''}"><div class="kb-box-head">${esc(head)}</div>${rows}${m&&m.city?`<div class="kb-box-foot" title="${esc(m.venue+', '+m.city)}">${esc(m.city)}</div>`:''}</div>`;}
+function koBox(head,rows,m,cls){return `<div class="kb-box${cls?' '+cls:''}">${head?`<div class="kb-box-head">${esc(head)}</div>`:''}${rows}${m&&m.city?`<div class="kb-box-foot" title="${esc(m.venue+', '+m.city)}">${esc(m.city)}</div>`:''}</div>`;}
 function koColumn(title,boxes,isLast){let h=`<div class="kb-round"><div class="kb-round-title">${esc(title)}</div>`;boxes.forEach((bx,i)=>{h+=`<div class="kb-cell">${bx}${(!isLast&&i%2===0)?'<span class="kb-vert"></span>':''}</div>`;});return h+'</div>';}
 // Winner of a matchup from KO_RESULTS.out (loser set); '' if undecided/unknown.
 function koWinner(x,y){const out=KO_RESULTS.out||[];return !x||!y?'':(out.includes(x)&&!out.includes(y)?y:(out.includes(y)&&!out.includes(x)?x:''));}
