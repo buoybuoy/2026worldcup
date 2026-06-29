@@ -63,6 +63,26 @@ MATCHES = {
 
 TEAM_TO_GROUP = {team: g for g, teams in GROUPS.items() for team in teams}
 
+# Knockout: results are stored as the set of winners per round (membership
+# scoring on the front-end, so order doesn't matter).
+KO_ROUND_ORDER = ['r32', 'r16', 'qf', 'sf', 'final']
+KO_ROUND_SIZE = {'r32': 16, 'r16': 8, 'qf': 4, 'sf': 2}
+
+
+def _ko_wins(ko, team):
+    return sum(team in ko[r] for r in ('r32', 'r16', 'qf', 'sf')) + (1 if ko['final'] == team else 0)
+
+
+def record_ko(ko, home, away, winner):
+    """Record a completed knockout winner into the round inferred from how many
+    rounds each team has already won. Skips the 3rd-place playoff (whose inferred
+    round is already full)."""
+    rd = KO_ROUND_ORDER[min(_ko_wins(ko, home), _ko_wins(ko, away))]
+    if rd == 'final':
+        ko['final'] = winner
+    elif len(ko[rd]) < KO_ROUND_SIZE[rd] and winner not in ko[rd]:
+        ko[rd].append(winner)
+
 
 def normalize(name):
     return NAME_MAP.get(name, name)
@@ -82,8 +102,9 @@ def find_match_key(home, away):
 
 
 def fetch_all():
-    """Return (scores, times, dates, scorers, channels)."""
+    """Return (scores, times, dates, scorers, channels, ko_results)."""
     scores, times, dates, scorers, channels = {}, {}, {}, {}, {}
+    ko_results = {'r32': [], 'r16': [], 'qf': [], 'sf': [], 'final': ''}
     start = date(2026, 6, 11)
     end = date(2026, 7, 19)  # through the final, so the golden boot keeps tallying
     current = start
@@ -129,7 +150,16 @@ def fetch_all():
 
                 key, swapped = find_match_key(home, away)
                 if key is None:
-                    print(f'  No key for: {home} vs {away}')
+                    # Cross-group match = knockout. Record the winner by round.
+                    # (Dates are processed in order, so earlier rounds land first.)
+                    if comp['status']['type'].get('completed'):
+                        winner = (home if home_data.get('winner')
+                                  else away if away_data.get('winner') else None)
+                        if winner:
+                            record_ko(ko_results, home, away, winner)
+                            print(f'  KO {winner} advances ({home} vs {away})')
+                        else:
+                            print(f'  KO no winner flag: {home} vs {away}')
                     continue
 
                 # Kickoff time/date in Pacific Time (every scheduled match)
@@ -158,10 +188,10 @@ def fetch_all():
 
         current += timedelta(days=1)
 
-    return scores, times, dates, scorers, channels
+    return scores, times, dates, scorers, channels, ko_results
 
 
-def update_html(filepath, scores, times, dates, scorers, channels):
+def update_html(filepath, scores, times, dates, scorers, channels, ko_results):
     with open(filepath, encoding='utf-8') as f:
         content = f.read()
     original = content
@@ -211,6 +241,15 @@ def update_html(filepath, scores, times, dates, scorers, channels):
     ) + ']'
     content = re.sub(r'const SCORERS=\[[^\]]*\];', f'const SCORERS={scorers_js};', content)
 
+    # 5) KO_RESULTS — knockout winners per round, full rewrite
+    def arr(lst):
+        return '[' + ','.join("'%s'" % esc(t) for t in lst) + ']'
+    ko_js = '{r32:%s,r16:%s,qf:%s,sf:%s,final:%s}' % (
+        arr(ko_results['r32']), arr(ko_results['r16']), arr(ko_results['qf']),
+        arr(ko_results['sf']), ("'%s'" % esc(ko_results['final'])) if ko_results['final'] else "''",
+    )
+    content = re.sub(r'const KO_RESULTS=\{[^}]*\};', f'const KO_RESULTS={ko_js};', content)
+
     if content == original:
         print('No changes to index.html.')
         return False
@@ -224,7 +263,8 @@ def update_html(filepath, scores, times, dates, scorers, channels):
 
 if __name__ == '__main__':
     print('Fetching scores, kickoff times, scorers, and channels...')
-    scores, times, dates, scorers, channels = fetch_all()
+    scores, times, dates, scorers, channels, ko_results = fetch_all()
+    ko_n = sum(len(ko_results[r]) for r in ('r32', 'r16', 'qf', 'sf')) + (1 if ko_results['final'] else 0)
     print(f'Found {len(scores)} completed matches, {len(times)} scheduled kickoffs, '
-          f'{len(scorers)} scorers, {len(channels)} channels.')
-    update_html('index.html', scores, times, dates, scorers, channels)
+          f'{len(scorers)} scorers, {len(channels)} channels, {ko_n} knockout results.')
+    update_html('index.html', scores, times, dates, scorers, channels, ko_results)
