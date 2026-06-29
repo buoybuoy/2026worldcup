@@ -411,11 +411,7 @@
   .kb-team.clinched .kb-team-name { color: var(--green-dark); }
   .kb-team.kb-won .kb-team-name { color: var(--green-dark); }
   .kb-team.kb-lost .kb-team-name { color: var(--text-secondary); font-weight: 500; }
-  .kb-team.kb-dim .kb-team-name { color: var(--text-secondary); font-weight: 500; }
   .kb-team.kp-pick .kb-team-name { font-weight: 700; }
-  .kb-team.kp-pick { background: var(--bg-secondary); }
-  .kb-team.kp-pick.kb-won { background: var(--green-light); }
-  .kb-team.kp-pick.kb-lost { background: var(--red-light); }
   .kb-in { color: var(--green); font-weight: 700; font-size: 11px; }
   .kb-team.kb-3rd { align-items: flex-start; }
   .kb-3rd-list { font-size: 10px; line-height: 1.35; color: var(--text); }
@@ -1615,11 +1611,12 @@ function renderKnockoutPred(name){
   const W={r32:new Set(KO_RESULTS.r32||[]),r16:new Set(KO_RESULTS.r16||[]),qf:new Set(KO_RESULTS.qf||[]),sf:new Set(KO_RESULTS.sf||[])};
   const champ=KO_RESULTS.final||'';
   const r32=kp.r32||[],r16=kp.r16||[],qf=kp.qf||[],sf=kp.sf||[];
+  // Pending teams stay black; only completed picks color (green/strike).
   const row=(pred,actual,pick,round)=>{
     if(!pred)return `<div class="kb-team"><span class="kb-team-name tbd">—</span></div>`;
     const isPick=pred===pick, elim=out.has(pred);
     const correct=isPick&&(round==='final'?pred===champ:W[round].has(pred));
-    const cls=isPick?(correct?'kp-pick kb-won':(elim?'kp-pick kb-lost':'kp-pick')):'kb-dim';
+    const cls=[isPick?'kp-pick':'',correct?'kb-won':'',elim?'kb-lost':''].filter(Boolean).join(' ');
     const body=elim?`<s>${esc(pred)}</s>${actual&&actual!==pred?`<span class="kp-corr">→ ${esc(actual)}</span>`:''}`:esc(pred);
     return `<div class="kb-team ${cls}"><span class="kb-team-name">${body}${correct?' <span class="kb-in" title="Correct">✓</span>':''}</span></div>`;
   };
@@ -1634,6 +1631,13 @@ function renderKnockoutPred(name){
   html+=koColumn('Quarterfinals',pairBoxes(KNOCKOUT_LATER.QF,r16,A.r16w,qf,'qf'),false);
   html+=koColumn('Semifinals',pairBoxes(KNOCKOUT_LATER.SF,qf,A.qfw,sf,'sf'),false);
   html+=koColumn('Final',pairBoxes(KNOCKOUT_LATER.F,sf,A.sfw,[kp.final||''],'final'),true);
+  // Champion line — who they picked to win it all
+  const fin=kp.final||'';
+  const champCorrect=!!fin&&fin===champ, champElim=out.has(fin);
+  const champCls=['kp-pick',champCorrect?'kb-won':'',champElim?'kb-lost':''].filter(Boolean).join(' ');
+  const champBody=champElim?`<s>${esc(fin)}</s>${champ&&champ!==fin?`<span class="kp-corr">→ ${esc(champ)}</span>`:''}`:(fin?esc(fin):'—');
+  const champBox=`<div class="kb-box"><div class="kb-team ${champCls}"><span class="kb-team-name">${champBody}${champCorrect?' <span class="kb-in" title="Correct">✓</span>':''}</span></div></div>`;
+  html+=koColumn('🏆 Champion',[champBox],true);
   html+=`</div></div>`;
   return html;
 }
