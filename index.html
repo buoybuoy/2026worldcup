@@ -409,6 +409,13 @@
   .kb-team-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .kb-team-name.tbd { color: var(--text-secondary); font-weight: 500; font-size: 12px; }
   .kb-team.clinched .kb-team-name { color: var(--green-dark); }
+  .kb-team.kb-won .kb-team-name { color: var(--green-dark); }
+  .kb-team.kb-lost .kb-team-name { color: var(--text-secondary); font-weight: 500; }
+  .kb-team.kb-dim .kb-team-name { color: var(--text-secondary); font-weight: 500; }
+  .kb-team.kp-pick .kb-team-name { font-weight: 700; }
+  .kb-team.kp-pick { background: var(--bg-secondary); }
+  .kb-team.kp-pick.kb-won { background: var(--green-light); }
+  .kb-team.kp-pick.kb-lost { background: var(--red-light); }
   .kb-in { color: var(--green); font-weight: 700; font-size: 11px; }
   .kb-team.kb-3rd { align-items: flex-start; }
   .kb-3rd-list { font-size: 10px; line-height: 1.35; color: var(--text); }
@@ -1600,44 +1607,33 @@ function renderKnockoutPred(name){
   if(!kp){
     return `<div class="kp-empty">Knockout bracket predictions open once the group stage ends and the Round of 32 is set.<br><span class="kp-legend">Points per correct pick — ${legend}.</span></div>`;
   }
-  // Each cell shows a matchup (both teams) with the pick highlighted. When a
-  // predicted team has been knocked out, it's struck through and the team that
-  // actually advanced (the real winner of that bracket position) is shown.
+  // Same box design as the Knockout tab. Each box is a matchup with the person's
+  // pick highlighted; a knocked-out pick is struck and the team that actually
+  // advanced is shown (→ team). 3rd-place play-off is omitted.
+  const A=koActual();
   const out=new Set(KO_RESULTS.out||[]);
   const W={r32:new Set(KO_RESULTS.r32||[]),r16:new Set(KO_RESULTS.r16||[]),qf:new Set(KO_RESULTS.qf||[]),sf:new Set(KO_RESULTS.sf||[])};
   const champ=KO_RESULTS.final||'';
-  const opp={};KNOCKOUT_R32.forEach(m=>{const[h,a]=r32Teams(m.slot);if(h&&a){opp[h]=a;opp[a]=h;}});
-  const pickCls=(t,round)=>{
-    if(!t)return 'pending';
-    if(round==='final')return champ?(t===champ?'correct':'wrong'):(out.has(t)?'wrong':'pending');
-    return W[round].has(t)?'correct':(out.has(t)?'wrong':'pending');
-  };
   const r32=kp.r32||[],r16=kp.r16||[],qf=kp.qf||[],sf=kp.sf||[];
-  // Walk the REAL bracket from R32 up, using each match's loser (KO_RESULTS.out)
-  // to know who actually advanced at each position.
-  const win=(x,y)=>!x||!y?'':(out.has(x)&&!out.has(y)?y:(out.has(y)&&!out.has(x)?x:''));
-  const aR32=r32.map(t=>win(t,opp[t]));
-  const aR16=Array.from({length:8},(_,k)=>win(aR32[2*k],aR32[2*k+1]));
-  const aQF=Array.from({length:4},(_,k)=>win(aR16[2*k],aR16[2*k+1]));
-  const aSF=Array.from({length:2},(_,k)=>win(aQF[2*k],aQF[2*k+1]));
-  const roundCol=(title,cells)=>`<div class="kb-round"><div class="kb-round-title">${esc(title)}</div>${cells.join('')}</div>`;
-  const side=(pred,actual,pick,round)=>{
-    const cls=pred===pick?('picked '+pickCls(pred,round)):'dim';
-    const inner=!pred?'—':(out.has(pred)
-      ?`<s>${esc(pred)}</s>${actual&&actual!==pred?`<span class="kp-corr">→ ${esc(actual)}</span>`:''}`
-      :esc(pred));
-    return `<div class="kp-side ${cls}" title="${esc(pred||'')}">${inner}</div>`;
+  const row=(pred,actual,pick,round)=>{
+    if(!pred)return `<div class="kb-team"><span class="kb-team-name tbd">—</span></div>`;
+    const isPick=pred===pick, elim=out.has(pred);
+    const correct=isPick&&(round==='final'?pred===champ:W[round].has(pred));
+    const cls=isPick?(correct?'kp-pick kb-won':(elim?'kp-pick kb-lost':'kp-pick')):'kb-dim';
+    const body=elim?`<s>${esc(pred)}</s>${actual&&actual!==pred?`<span class="kp-corr">→ ${esc(actual)}</span>`:''}`:esc(pred);
+    return `<div class="kb-team ${cls}"><span class="kb-team-name">${body}${correct?' <span class="kb-in" title="Correct">✓</span>':''}</span></div>`;
   };
-  const cell=(pA,aA,pB,aB,pick,round,vert)=>`<div class="kb-cell"><div class="kp-match">${side(pA,aA,pick,round)}${side(pB,aB,pick,round)}</div>${vert?'<span class="kb-vert"></span>':''}</div>`;
+  const mbox=(m,pA,aA,pB,aB,pick,round)=>koBox(koMatchHead(m),row(pA,aA,pick,round)+row(pB,aB,pick,round),m,'');
+  const r32boxes=KO_R32_ORDER.map((num,i)=>mbox(A.map[num],A.r32m[i][0],'',A.r32m[i][1],'',r32[i],'r32'));
+  const pairBoxes=(arr,prev,prevAct,picks,round)=>arr.map((m,k)=>mbox(m,prev[2*k],prevAct[2*k],prev[2*k+1],prevAct[2*k+1],picks[k]||'',round));
   const pts=scoreKnockout(name);
   const maxPts=16*KO_SCORING.R32+8*KO_SCORING.R16+4*KO_SCORING.QF+2*KO_SCORING.SF+KO_SCORING.F;
   let html=`<div class="kp-subtitle">${pts} pts so far · max ${maxPts}</div><div class="kb-scroll"><div class="kb">`;
-  // R32: real matchup (pick vs real opponent); the opponent is the actual winner if the pick lost, so no extra correction.
-  html+=roundCol('R32',r32.map((t,i)=>cell(t,'',opp[t]||'?','',t,'r32',i%2===0)));
-  html+=roundCol('R16',r16.map((p,k)=>cell(r32[2*k],aR32[2*k],r32[2*k+1],aR32[2*k+1],p,'r16',k%2===0)));
-  html+=roundCol('QF',qf.map((p,k)=>cell(r16[2*k],aR16[2*k],r16[2*k+1],aR16[2*k+1],p,'qf',k%2===0)));
-  html+=roundCol('SF',sf.map((p,k)=>cell(qf[2*k],aQF[2*k],qf[2*k+1],aQF[2*k+1],p,'sf',k%2===0)));
-  html+=roundCol('Final',[cell(sf[0],aSF[0],sf[1],aSF[1],kp.final||'','final',false)]);
+  html+=koColumn('Round of 32',r32boxes,false);
+  html+=koColumn('Round of 16',pairBoxes(KNOCKOUT_LATER.R16,r32,A.r32w,r16,'r16'),false);
+  html+=koColumn('Quarterfinals',pairBoxes(KNOCKOUT_LATER.QF,r16,A.r16w,qf,'qf'),false);
+  html+=koColumn('Semifinals',pairBoxes(KNOCKOUT_LATER.SF,qf,A.qfw,sf,'sf'),false);
+  html+=koColumn('Final',pairBoxes(KNOCKOUT_LATER.F,sf,A.sfw,[kp.final||''],'final'),true);
   html+=`</div></div>`;
   return html;
 }
@@ -1845,91 +1841,51 @@ function thirdPlaceOdds(){
   _toCache={byWinner,advance};_toSig=sig;return _toCache;
 }
 
+// ---- Shared knockout-bracket helpers (Knockout tab + per-person predictions) ----
+const KO_R32_ORDER=[74,77,73,75,83,84,81,82,76,78,79,80,86,88,85,87];  // bracket-tree order; matches prediction arrays
+function koShortDate(d){const dt=new Date(d+'T12:00:00');const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return m[dt.getMonth()]+' '+dt.getDate();}
+function koShortTime(t){const[h,mn]=t.split(':').map(Number);const ap=h>=12?'PM':'AM';const h12=h%12||12;return mn?`${h12}:${String(mn).padStart(2,'0')} ${ap}`:`${h12} ${ap}`;}
+function koMatchHead(m){return `M${m.num} · ${koShortDate(m.date)} · ${koShortTime(m.time)}`;}
+function koBox(head,rows,m,cls){return `<div class="kb-box${cls?' '+cls:''}"><div class="kb-box-head">${esc(head)}</div>${rows}${m&&m.city?`<div class="kb-box-foot" title="${esc(m.venue+', '+m.city)}">${esc(m.city)}</div>`:''}</div>`;}
+function koColumn(title,boxes,isLast){let h=`<div class="kb-round"><div class="kb-round-title">${esc(title)}</div>`;boxes.forEach((bx,i)=>{h+=`<div class="kb-cell">${bx}${(!isLast&&i%2===0)?'<span class="kb-vert"></span>':''}</div>`;});return h+'</div>';}
+// Winner of a matchup from KO_RESULTS.out (loser set); '' if undecided/unknown.
+function koWinner(x,y){const out=KO_RESULTS.out||[];return !x||!y?'':(out.includes(x)&&!out.includes(y)?y:(out.includes(y)&&!out.includes(x)?x:''));}
+// Real bracket resolved from final group standings (R32 matchups) + results.
+function koActual(){
+  const map={};KNOCKOUT_R32.forEach(m=>map[m.num]=m);
+  const r32m=KO_R32_ORDER.map(num=>r32Teams(map[num].slot));
+  const r32w=r32m.map(p=>koWinner(p[0],p[1]));
+  const r16w=Array.from({length:8},(_,k)=>koWinner(r32w[2*k],r32w[2*k+1]));
+  const qfw=Array.from({length:4},(_,k)=>koWinner(r16w[2*k],r16w[2*k+1]));
+  const sfw=Array.from({length:2},(_,k)=>koWinner(qfw[2*k],qfw[2*k+1]));
+  const champ=koWinner(sfw[0],sfw[1])||KO_RESULTS.final||'';
+  return {map,r32m,r32w,r16w,qfw,sfw,champ};
+}
+
 function renderKnockout(){
   const el=document.getElementById('knockout-content');el.innerHTML='';
-  const top8=computeThirdAdvancing();
-  const odds=thirdPlaceOdds();
-  const st=g=>calcStandings(g);
-
-  function shortDate(d){const dt=new Date(d+'T12:00:00');const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return m[dt.getMonth()]+' '+dt.getDate();}
-  function shortTime(t){const[h,mn]=t.split(':').map(Number);const ap=h>=12?'PM':'AM';const h12=h%12||12;return mn?`${h12}:${String(mn).padStart(2,'0')} ${ap}`:`${h12} ${ap}`;}
-
-  // R32 slot → [side1, side2]; each side {name, seed, clinched, poolTitle?}
-  const mk=(name,seed,extra)=>Object.assign({name,seed,clinched:name?clinchedTop2(name):false},extra||{});
-  function r32Sides(slot){
-    if(slot.type==='ru-ru')return[mk(st(slot.a)[1]&&st(slot.a)[1].name,'2'+slot.a),mk(st(slot.b)[1]&&st(slot.b)[1].name,'2'+slot.b)];
-    if(slot.type==='w-ru')return[mk(st(slot.w)[0]&&st(slot.w)[0].name,'1'+slot.w),mk(st(slot.ru)[1]&&st(slot.ru)[1].name,'2'+slot.ru)];
-    // w-3rd: simulated odds of which group's 3rd-placer fills this slot
-    const lbl=g=>gamesPlayed(g)>0&&st(g)[2]?st(g)[2].name:'Group '+g;
-    const oddsList=(odds.byWinner[slot.w]||[]).filter(o=>o.prob>=0.005)
-      .map(o=>({g:o.g,prob:o.prob,team:lbl(o.g)}));
-    const poolTitle='Eligible 3rd-placers from groups '+slot.pool.join('/')
-      +' · % = simulated chance that group’s 3rd-placer plays here';
-    return[mk(st(slot.w)[0]&&st(slot.w)[0].name,'1'+slot.w),{seed:'3rd',poolTitle,oddsList}];
-  }
-
-  function teamRow(side){
-    const titleAttr=side.poolTitle?` title="${esc(side.poolTitle)}"`:'';
-    if(side.oddsList!==undefined){ // 3rd-place slot — show simulated placement odds
-      const ol=side.oddsList;
-      if(ol.length===1&&ol[0].prob>=0.999)
-        return `<div class="kb-team"><span class="kb-team-name"${titleAttr}>${esc(ol[0].team)} <span class="kb-in" title="Locked into this slot">✓</span></span><span class="kb-seed">3rd</span></div>`;
-      const rows=ol.length?ol.map(o=>`<span class="kb-odd"><span class="kb-odd-nm">${esc(o.team)} <span class="kb-odd-g">3${o.g}</span></span><span class="kb-odd-pct">${Math.round(o.prob*100)}%</span></span>`).join(''):'TBD';
-      return `<div class="kb-team kb-3rd"><span class="kb-3rd-list"${titleAttr}><span class="kb-3rd-tag">3rd-place odds</span>${rows}</span></div>`;
-    }
-    const nm=side.name;
-    const main=nm?esc(nm):esc(side.seed||'TBD');
-    const sub=nm?esc(side.seed||''):'';
-    const inMark=side.clinched?' <span class="kb-in" title="Officially qualified">✓</span>':'';
-    return `<div class="kb-team${side.clinched?' clinched':''}"><span class="kb-team-name${nm?'':' tbd'}"${titleAttr}>${main}${inMark}</span><span class="kb-seed">${sub}</span></div>`;
-  }
-  function feederRow(num){return `<div class="kb-team"><span class="kb-team-name tbd">Winner ${num}</span></div>`;}
-  function box(head,rowsHtml,city,proj,fullVenue){
-    return `<div class="kb-box${proj?' proj':''}">`
-      +`<div class="kb-box-head">${esc(head)}</div>${rowsHtml}`
-      +(city?`<div class="kb-box-foot" title="${esc(fullVenue||city)}">${esc(city)}</div>`:'')
-      +`</div>`;
-  }
-  function column(title,boxes,isLast){
-    let h=`<div class="kb-round"><div class="kb-round-title">${esc(title)}</div>`;
-    boxes.forEach((bx,i)=>{
-      const vert=(!isLast&&i%2===0)?'<span class="kb-vert"></span>':'';
-      h+=`<div class="kb-cell">${bx}${vert}</div>`;
-    });
-    return h+'</div>';
-  }
-
-  // Round of 32 in bracket (tree) order
-  const r32order=[74,77,73,75,83,84,81,82,76,78,79,80,86,88,85,87];
-  const r32map={};KNOCKOUT_R32.forEach(m=>r32map[m.num]=m);
-  const r32boxes=r32order.map(num=>{
-    const m=r32map[num];
-    const sides=r32Sides(m.slot);
-    const proj=sides[0].name&&sides[1].name;
-    const head=`M${m.num} · ${shortDate(m.date)} · ${shortTime(m.time)}`;
-    return box(head,teamRow(sides[0])+teamRow(sides[1]),m.city,proj,m.venue+', '+m.city);
-  });
-  function laterBoxes(arr){
-    return arr.map(m=>{
-      const head=`M${m.num} · ${shortDate(m.date)} · ${shortTime(m.time)}`;
-      return box(head,feederRow(m.f[0])+feederRow(m.f[1]),m.city,false,m.venue+', '+m.city);
-    });
-  }
-
+  const A=koActual();
+  // a team in an actual-result match: win (advanced) / lost (struck) / pending; '' name → "Winner M##"
+  const row=(name,winner,feeder)=>{
+    if(!name)return `<div class="kb-team"><span class="kb-team-name tbd">Winner ${feeder}</span></div>`;
+    const won=name===winner,lost=winner&&name!==winner;
+    return `<div class="kb-team${won?' kb-won':lost?' kb-lost':''}"><span class="kb-team-name">${lost?`<s>${esc(name)}</s>`:esc(name)}${won?' <span class="kb-in" title="Advanced">✓</span>':''}</span></div>`;
+  };
+  const mbox=(m,a,b,winner,feeders)=>koBox(koMatchHead(m),row(a,winner,feeders&&feeders[0])+row(b,winner,feeders&&feeders[1]),m,winner?'done':'');
+  const r32boxes=KO_R32_ORDER.map((num,i)=>mbox(A.map[num],A.r32m[i][0],A.r32m[i][1],A.r32w[i]));
+  const later=(arr,winners,feedW)=>arr.map((m,k)=>mbox(m,feedW[2*k]||'',feedW[2*k+1]||'',winners[k],m.f));
   let html='<div class="kb-scroll"><div class="kb">';
-  html+=column('Round of 32',r32boxes,false);
-  html+=column('Round of 16',laterBoxes(KNOCKOUT_LATER.R16),false);
-  html+=column('Quarterfinals',laterBoxes(KNOCKOUT_LATER.QF),false);
-  html+=column('Semifinals',laterBoxes(KNOCKOUT_LATER.SF),false);
-  html+=column('Final',laterBoxes(KNOCKOUT_LATER.F),true);
+  html+=koColumn('Round of 32',r32boxes,false);
+  html+=koColumn('Round of 16',later(KNOCKOUT_LATER.R16,A.r16w,A.r32w),false);
+  html+=koColumn('Quarterfinals',later(KNOCKOUT_LATER.QF,A.qfw,A.r16w),false);
+  html+=koColumn('Semifinals',later(KNOCKOUT_LATER.SF,A.sfw,A.qfw),false);
+  html+=koColumn('Final',later(KNOCKOUT_LATER.F,[A.champ],A.sfw),true);
   html+='</div></div>';
-
-  // Third-place play-off (standalone)
+  // Third-place play-off — the two semifinal losers
   const tp=KNOCKOUT_LATER.THIRD;
-  const tpHead=`M${tp.num} · ${shortDate(tp.date)} · ${shortTime(tp.time)}`;
-  const tpRows=`<div class="kb-team"><span class="kb-team-name tbd">Loser ${tp.f[0]}</span></div><div class="kb-team"><span class="kb-team-name tbd">Loser ${tp.f[1]}</span></div>`;
-  html+=`<div class="kb-third"><div class="kb-round-title">🥉 Third-Place Play-off</div>${box(tpHead,tpRows,tp.city,false,tp.venue+', '+tp.city)}</div>`;
-
+  const sfLoser=k=>{const a=A.qfw[2*k],b=A.qfw[2*k+1],w=A.sfw[k];return w?(w===a?b:a):'';};
+  const tprow=(name,fb)=>name?`<div class="kb-team"><span class="kb-team-name">${esc(name)}</span></div>`:`<div class="kb-team"><span class="kb-team-name tbd">Loser ${fb}</span></div>`;
+  html+=`<div class="kb-third"><div class="kb-round-title">🥉 Third-Place Play-off</div>${koBox(koMatchHead(tp),tprow(sfLoser(0),tp.f[0])+tprow(sfLoser(1),tp.f[1]),tp,'')}</div>`;
   el.innerHTML=html;
 }
 
