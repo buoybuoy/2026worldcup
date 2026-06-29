@@ -238,6 +238,14 @@
   .kp-pick.correct { border-color: var(--green); background: var(--green-light); color: var(--green-dark); }
   .kp-pick.wrong { border-color: #e3b4ad; background: #f7e4e1; color: #9B2D1F; }
   .kp-pick.inline { display: inline-block; width: auto; padding: 3px 12px; }
+  /* per-person bracket: each cell is a matchup (two teams), the pick highlighted */
+  .kp-match { width: 100%; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .kp-side { font-size: 12px; font-weight: 600; padding: 5px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--bg-card); }
+  .kp-side + .kp-side { border-top: 1px solid var(--border); }
+  .kp-side.dim { font-weight: 500; color: var(--text-secondary); }
+  .kp-side.picked.pending { background: var(--bg-secondary); }
+  .kp-side.picked.correct { background: var(--green-light); color: var(--green-dark); }
+  .kp-side.picked.wrong { background: #f7e4e1; color: #9B2D1F; text-decoration: line-through; }
   .kp-pick.revealed { white-space: normal; display: flex; flex-direction: column; gap: 1px; line-height: 1.2; }
   .kp-miss { font-size: 10px; font-weight: 500; opacity: 0.75; }
   .kp-actual { color: var(--green-dark); }
@@ -1591,29 +1599,34 @@ function renderKnockoutPred(name){
   if(!kp){
     return `<div class="kp-empty">Knockout bracket predictions open once the group stage ends and the Round of 32 is set.<br><span class="kp-legend">Points per correct pick — ${legend}.</span></div>`;
   }
-  const R=KO_RESULTS||{};
-  const out=new Set(R.out||[]);
-  // Membership-based: a pick is correct if its team is among that round's
-  // winners, wrong (struck) if the team has been knocked out, else pending.
-  const col=(title,picks,winnersList)=>{
-    const won=new Set((winnersList||[]).filter(Boolean));
-    let h=`<div class="kb-round"><div class="kb-round-title">${esc(title)}</div>`;
-    picks.forEach((team,i)=>{
-      const cls=!team?'pending':won.has(team)?'correct':out.has(team)?'wrong':'pending';
-      const vert=(i%2===0&&picks.length>1)?'<span class="kb-vert"></span>':'';
-      const inner=team?(cls==='wrong'?`<s>${esc(team)}</s>`:esc(team)):'—';
-      h+=`<div class="kb-cell"><div class="kp-pick ${cls}" title="${esc(team||'')}">${inner}</div>${vert}</div>`;
-    });
-    return h+'</div>';
+  // Each cell shows the actual matchup (both teams), the person's pick
+  // highlighted. R32 opponents come from the real bracket; later rounds pair the
+  // person's own previous-round winner picks. Pick is green if its team is a
+  // round winner, struck if knocked out (KO_RESULTS.out), else pending.
+  const out=new Set(KO_RESULTS.out||[]);
+  const W={r32:new Set(KO_RESULTS.r32||[]),r16:new Set(KO_RESULTS.r16||[]),qf:new Set(KO_RESULTS.qf||[]),sf:new Set(KO_RESULTS.sf||[])};
+  const champ=KO_RESULTS.final||'';
+  const opp={};KNOCKOUT_R32.forEach(m=>{const[h,a]=r32Teams(m.slot);if(h&&a){opp[h]=a;opp[a]=h;}});
+  const pickCls=(t,round)=>{
+    if(!t)return 'pending';
+    if(round==='final')return champ?(t===champ?'correct':'wrong'):(out.has(t)?'wrong':'pending');
+    return W[round].has(t)?'correct':(out.has(t)?'wrong':'pending');
   };
+  const cell=(a,b,pick,round,vert)=>{
+    const side=t=>`<div class="kp-side ${t===pick?'picked '+pickCls(t,round):'dim'}" title="${esc(t||'')}">${t?esc(t):'—'}</div>`;
+    return `<div class="kb-cell"><div class="kp-match">${side(a)}${side(b)}</div>${vert?'<span class="kb-vert"></span>':''}</div>`;
+  };
+  const roundCol=(title,cells)=>`<div class="kb-round"><div class="kb-round-title">${esc(title)}</div>${cells.join('')}</div>`;
+  const r32=kp.r32||[],r16=kp.r16||[],qf=kp.qf||[],sf=kp.sf||[];
+  const pairCol=(prev,picks,round,title)=>roundCol(title,(picks||[]).map((p,k)=>cell(prev[2*k],prev[2*k+1],p,round,round!=='final'&&k%2===0)));
   const pts=scoreKnockout(name);
   const maxPts=16*KO_SCORING.R32+8*KO_SCORING.R16+4*KO_SCORING.QF+2*KO_SCORING.SF+KO_SCORING.F;
   let html=`<div class="kp-subtitle">${pts} pts so far · max ${maxPts}</div><div class="kb-scroll"><div class="kb">`;
-  html+=col('R32',kp.r32||[],R.r32);
-  html+=col('R16',kp.r16||[],R.r16);
-  html+=col('QF',kp.qf||[],R.qf);
-  html+=col('SF',kp.sf||[],R.sf);
-  html+=col('Champion',[kp.final||''],R.final?[R.final]:[]);
+  html+=roundCol('R32',r32.map((t,i)=>cell(t,opp[t]||'?',t,'r32',i%2===0)));
+  html+=pairCol(r32,r16,'r16','R16');
+  html+=pairCol(r16,qf,'qf','QF');
+  html+=pairCol(qf,sf,'sf','SF');
+  html+=pairCol(sf,[kp.final||''],'final','Final');
   html+=`</div></div>`;
   return html;
 }
