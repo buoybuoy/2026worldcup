@@ -1262,11 +1262,11 @@ function lastCompletedMatch(){
 function lastCompletedKnockout(){
   const A=koActual();
   const teamsByNum={};
-  const ent=KO_R32_ORDER.map((num,i)=>{teamsByNum[num]=A.r32m[i];return {num,date:A.map[num].date,time:A.map[num].time,teams:A.r32m[i]};});
+  const ent=KO_R32_ORDER.map((num,i)=>{teamsByNum[num]=A.r32m[i];return {num,round:'r32',date:A.map[num].date,time:A.map[num].time,teams:A.r32m[i]};});
   const wNum=num=>{const t=teamsByNum[num];return t?koWinner(t[0],t[1]):'';};
-  [['R16'],['QF'],['SF'],['F']].forEach(([k])=>{(KNOCKOUT_LATER[k]||[]).forEach(m=>{const t=[wNum(m.f[0]),wNum(m.f[1])];teamsByNum[m.num]=t;ent.push({num:m.num,date:m.date,time:m.time,teams:t});});});
+  [['R16','r16'],['QF','qf'],['SF','sf'],['F','final']].forEach(([k,round])=>{(KNOCKOUT_LATER[k]||[]).forEach(m=>{const t=[wNum(m.f[0]),wNum(m.f[1])];teamsByNum[m.num]=t;ent.push({num:m.num,round,date:m.date,time:m.time,teams:t});});});
   let best=null;
-  ent.forEach(e=>{const[h,a]=e.teams;if(!h||!a)return;const sc=koScore(h,a);if(!sc)return;const dt=(e.date||'9999')+'T'+(e.time||'00:00');if(!best||dt>best.dt)best={type:'ko',dt,h,a,sc};});
+  ent.forEach(e=>{const[h,a]=e.teams;if(!h||!a)return;const sc=koScore(h,a);if(!sc)return;const dt=(e.date||'9999')+'T'+(e.time||'00:00');if(!best||dt>best.dt)best={type:'ko',dt,h,a,sc,win:koWinner(h,a),round:e.round};});
   return best;
 }
 // Latest completed game across the group stage + knockouts, or null. Used for the
@@ -1538,13 +1538,6 @@ function withKoResults(map,fn){
   Object.assign(KO_RESULTS,map);
   try{return fn();}finally{Object.assign(KO_RESULTS,b);}
 }
-// Most recently filled knockout result (round + index), or null.
-function lastKoResult(){
-  let last=null;
-  ['r32','r16','qf','sf'].forEach(r=>(KO_RESULTS[r]||[]).forEach((v,i)=>{if(v)last={round:r,idx:i};}));
-  if(KO_RESULTS.final)last={round:'final',idx:0};
-  return last;
-}
 function renderLeaderboardKO(head,body){
   let names=Object.keys(KNOCKOUT_PREDS);
   if(prizePoolOnly)names=names.filter(inPrizePool);
@@ -1554,12 +1547,12 @@ function renderLeaderboardKO(head,body){
     return;
   }
   const ranked=names.map(n=>({n,ko:scoreKnockout(n),rem:maxRemaining(n)})).sort((a,b)=>b.ko-a.ko);
-  // Move = rank change caused by the most recent knockout result.
-  const last=lastKoResult();
+  // Move = rank change caused by the most recently completed knockout game.
+  const last=lastCompletedKnockout();
   let baseRanks=null;
   if(last){
     const base={r32:KO_RESULTS.r32.slice(),r16:KO_RESULTS.r16.slice(),qf:KO_RESULTS.qf.slice(),sf:KO_RESULTS.sf.slice(),final:KO_RESULTS.final};
-    if(last.round==='final')base.final='';else base[last.round][last.idx]='';
+    if(last.round==='final')base.final='';else{const i=base[last.round].indexOf(last.win);if(i>=0)base[last.round][i]='';}
     baseRanks=withKoResults(base,()=>{
       const tot={};names.forEach(n=>tot[n]=scoreKnockout(n));
       const rk={};names.forEach(n=>rk[n]=names.filter(m=>tot[m]>tot[n]).length+1);
@@ -1598,12 +1591,12 @@ function renderLeaderboard(){
     delete baseScores[lg.key];
     baseRanks=withScores(baseScores,poolRank);
   }else if(lg){
-    const lk=lastKoResult();
-    if(lk){
-      const base={r32:KO_RESULTS.r32.slice(),r16:KO_RESULTS.r16.slice(),qf:KO_RESULTS.qf.slice(),sf:KO_RESULTS.sf.slice(),final:KO_RESULTS.final};
-      if(lk.round==='final')base.final='';else base[lk.round][lk.idx]='';
-      baseRanks=withKoResults(base,poolRank);
-    }
+    // Re-base on the exact knockout game the "Last game" line shows: remove its
+    // winner from that round so the Move column tracks knockout completions.
+    const base={r32:KO_RESULTS.r32.slice(),r16:KO_RESULTS.r16.slice(),qf:KO_RESULTS.qf.slice(),sf:KO_RESULTS.sf.slice(),final:KO_RESULTS.final};
+    if(lg.round==='final')base.final='';
+    else{const i=base[lg.round].indexOf(lg.win);if(i>=0)base[lg.round][i]='';}
+    baseRanks=withKoResults(base,poolRank);
   }
   const ranked=pool.map(n=>({n,total:totalScore(n),groupPts:Object.keys(GROUPS).reduce((s,g)=>{const r=scoreGroup(n,g);return s+(r?r.pts:0);},0),tp:scoreThird(n),ko:scoreKnockout(n),rem:maxRemaining(n)})).sort((a,b)=>b.total-a.total);
   let html='';
