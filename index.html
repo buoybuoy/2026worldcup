@@ -776,10 +776,10 @@ const POS_PTS=[25,15,10,5];
 const KO_SCORING={R32:25,R16:50,QF:100,SF:200,F:400};
 // Actual knockout winners, by round in bracket (tree) order. The bot will fill
 // these once knockout games are played; empty until then.
-const KO_RESULTS={r32:['Canada','Brazil','Paraguay','Morocco','Norway','France','Mexico'],r16:[],qf:[],sf:[],final:'',out:['South Africa','Japan','Germany','Netherlands','Ivory Coast','Sweden','Ecuador']};
+const KO_RESULTS={r32:['Canada','Brazil','Paraguay','Morocco','Norway','France','Mexico','England'],r16:[],qf:[],sf:[],final:'',out:['South Africa','Japan','Germany','Netherlands','Ivory Coast','Sweden','Ecuador','DR Congo']};
 // Knockout final scores, keyed by the two teams sorted & joined with '|',
 // value "g0-g1" in that sorted order. Filled by the bot + live poller.
-const KO_SCORES={'Brazil|Japan':'2-1','Canada|South Africa':'1-0','Ecuador|Mexico':'0-2','France|Sweden':'3-0','Germany|Paraguay':'1-1','Ivory Coast|Norway':'1-2','Morocco|Netherlands':'1-1'};
+const KO_SCORES={'Brazil|Japan':'2-1','Canada|South Africa':'1-0','DR Congo|England':'1-2','Ecuador|Mexico':'0-2','France|Sweden':'3-0','Germany|Paraguay':'1-1','Ivory Coast|Norway':'1-2','Morocco|Netherlands':'1-1'};
 // Each participant's bracket picks: winners by round in bracket order
 // (R32: 16, R16: 8, QF: 4, SF: 2, final). Filled once the Round of 32 is set
 // and participants submit their brackets.
@@ -1258,11 +1258,31 @@ function lastCompletedMatch(){
   });
   return best;
 }
+// Most recent completed knockout match, resolved to real teams + score, or null.
+function lastCompletedKnockout(){
+  const A=koActual();
+  const teamsByNum={};
+  const ent=KO_R32_ORDER.map((num,i)=>{teamsByNum[num]=A.r32m[i];return {num,date:A.map[num].date,time:A.map[num].time,teams:A.r32m[i]};});
+  const wNum=num=>{const t=teamsByNum[num];return t?koWinner(t[0],t[1]):'';};
+  [['R16'],['QF'],['SF'],['F']].forEach(([k])=>{(KNOCKOUT_LATER[k]||[]).forEach(m=>{const t=[wNum(m.f[0]),wNum(m.f[1])];teamsByNum[m.num]=t;ent.push({num:m.num,date:m.date,time:m.time,teams:t});});});
+  let best=null;
+  ent.forEach(e=>{const[h,a]=e.teams;if(!h||!a)return;const sc=koScore(h,a);if(!sc)return;const dt=(e.date||'9999')+'T'+(e.time||'00:00');if(!best||dt>best.dt)best={type:'ko',dt,h,a,sc};});
+  return best;
+}
+// Latest completed game across the group stage + knockouts, or null. Used for the
+// "Last game" line and the overall leaderboard's Move baseline.
+function lastCompletedGame(){
+  const g=lastCompletedMatch();
+  const gg=g?{type:'group',dt:g.dt,h:g.h,a:g.a,sc:g.sc,key:g.g+'|'+g.h+'|'+g.a}:null;
+  const k=lastCompletedKnockout();
+  if(gg&&k)return k.dt>gg.dt?k:gg;
+  return k||gg;
+}
 function stampLastUpdated(){
   const lu=document.getElementById('last-updated-line');
   if(lu)lu.textContent=lastUpdated?'Last updated: '+lastUpdated.toLocaleTimeString('en-US',{timeZone:'America/Los_Angeles',hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true})+' PT':'';
   const lg=document.getElementById('last-game-line');
-  if(lg){const m=lastCompletedMatch();lg.textContent=m?`Last game: ${m.h} ${m.sc[0]}–${m.sc[1]} ${m.a}`:'';}
+  if(lg){const m=lastCompletedGame();lg.textContent=m?`Last game: ${m.h} ${m.sc[0]}–${m.sc[1]} ${m.a}`:'';}
 }
 
 // ---- Knockout matches on the Today tab -----------------------------------
@@ -1571,12 +1591,19 @@ function renderLeaderboard(){
   const poolRank=()=>{const tot={};pool.forEach(n=>tot[n]=totalScore(n));const rk={};pool.forEach(n=>rk[n]=pool.filter(m=>tot[m]>tot[n]).length+1);return rk;};
   // Move = rank change caused by the most recently completed game: compare
   // current ranks to ranks with that one game removed (re-bases each game).
-  const lg=lastCompletedMatch();
+  const lg=lastCompletedGame();
   let baseRanks=null;
-  if(lg){
+  if(lg&&lg.type==='group'){
     const baseScores=Object.assign({},scores);
-    delete baseScores[lg.g+'|'+lg.h+'|'+lg.a];
+    delete baseScores[lg.key];
     baseRanks=withScores(baseScores,poolRank);
+  }else if(lg){
+    const lk=lastKoResult();
+    if(lk){
+      const base={r32:KO_RESULTS.r32.slice(),r16:KO_RESULTS.r16.slice(),qf:KO_RESULTS.qf.slice(),sf:KO_RESULTS.sf.slice(),final:KO_RESULTS.final};
+      if(lk.round==='final')base.final='';else base[lk.round][lk.idx]='';
+      baseRanks=withKoResults(base,poolRank);
+    }
   }
   const ranked=pool.map(n=>({n,total:totalScore(n),groupPts:Object.keys(GROUPS).reduce((s,g)=>{const r=scoreGroup(n,g);return s+(r?r.pts:0);},0),tp:scoreThird(n),ko:scoreKnockout(n),rem:maxRemaining(n)})).sort((a,b)=>b.total-a.total);
   let html='';
