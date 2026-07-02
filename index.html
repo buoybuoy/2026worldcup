@@ -1686,10 +1686,12 @@ function renderKnockoutPred(name){
   // actual teams at the box's two positions (for the real score)
   const mbox=(m,pA,aA,pB,aB,pick,round)=>{
     const actA=round==='r32'?pA:aA,actB=round==='r32'?pB:aB,sc=koScore(actA,actB);
-    // Outline a completed box red when this pick lost, green when it advanced.
+    // Outline red once this pick is eliminated (even before the box's own match
+    // is played — e.g. a future-round slot whose team is already out); green only
+    // when the match has actually been won.
     const pickCorrect=pick&&(round==='final'?pick===champ:W[round]&&W[round].has(pick));
     const pickWrong=pick&&!pickCorrect&&out.has(pick);
-    const cls=sc?(pickWrong?'kb-done kb-wrong':'kb-done'):'';
+    const cls=pickWrong?'kb-done kb-wrong':(sc?'kb-done':'');
     return koBox('',row(pA,aA,pick,round,sc?sc[0]:null)+row(pB,aB,pick,round,sc?sc[1]:null),m,cls);
   };
   const r32boxes=KO_R32_ORDER.map((num,i)=>mbox(A.map[num],A.r32m[i][0],'',A.r32m[i][1],'',r32[i],'r32'));
@@ -1707,7 +1709,8 @@ function renderKnockoutPred(name){
   const champCorrect=!!fin&&fin===champ, champElim=out.has(fin);
   const champCls=['kp-pick',champCorrect?'kb-won':'',champElim?'kb-lost':''].filter(Boolean).join(' ');
   const champBody=champElim?`<s>${esc(fin)}</s>${champ&&champ!==fin?`<span class="kp-corr">→ ${esc(champ)}</span>`:''}`:(fin?esc(fin):'—');
-  const champBox=koBox('🏆 Champion',`<div class="kb-team ${champCls}"><span class="kb-team-name">${champBody}${champCorrect?' <span class="kb-in" title="Correct">✓</span>':''}</span></div>`,null,'kb-champ');
+  const champOutline=champCorrect?' kb-done':(champElim?' kb-done kb-wrong':'');
+  const champBox=koBox('🏆 Champion',`<div class="kb-team ${champCls}"><span class="kb-team-name">${champBody}${champCorrect?' <span class="kb-in" title="Correct">✓</span>':''}</span></div>`,null,'kb-champ'+champOutline);
   html+=koColumn('',[champBox],true);
   html+=`</div></div>`;
   return html;
