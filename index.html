@@ -1686,12 +1686,14 @@ function renderKnockoutPred(name){
   // actual teams at the box's two positions (for the real score)
   const mbox=(m,pA,aA,pB,aB,pick,round)=>{
     const actA=round==='r32'?pA:aA,actB=round==='r32'?pB:aB,sc=koScore(actA,actB);
-    // Outline red once this pick is eliminated (even before the box's own match
-    // is played — e.g. a future-round slot whose team is already out); green only
-    // when the match has actually been won.
+    // Completed box: green if the pick advanced, red if it lost. Not-yet-played
+    // box: red only when BOTH predicted teams are already out (so the matchup can
+    // no longer happen); if either is still alive, stay grey until it's played.
     const pickCorrect=pick&&(round==='final'?pick===champ:W[round]&&W[round].has(pick));
-    const pickWrong=pick&&!pickCorrect&&out.has(pick);
-    const cls=pickWrong?'kb-done kb-wrong':(sc?'kb-done':'');
+    const bothOut=pA&&pB&&out.has(pA)&&out.has(pB);
+    let cls='';
+    if(sc)cls=(pick&&!pickCorrect&&out.has(pick))?'kb-done kb-wrong':'kb-done';
+    else if(bothOut)cls='kb-done kb-wrong';
     return koBox('',row(pA,aA,pick,round,sc?sc[0]:null)+row(pB,aB,pick,round,sc?sc[1]:null),m,cls);
   };
   const r32boxes=KO_R32_ORDER.map((num,i)=>mbox(A.map[num],A.r32m[i][0],'',A.r32m[i][1],'',r32[i],'r32'));
