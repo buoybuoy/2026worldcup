@@ -411,6 +411,7 @@
   .kb-box { width: 100%; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; }
   .kb-box.proj { border-color: var(--green); }
   .kb-box.kb-done { border-color: var(--green); box-shadow: 0 0 0 1px var(--green); }
+  .kb-box.kb-wrong { border-color: var(--red-dark); box-shadow: 0 0 0 1px var(--red-dark); }
   .kb-box-head { font-size: 9px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .kb-team { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 2px 0; }
   .kb-team + .kb-team { border-top: 1px solid var(--border); }
@@ -1685,7 +1686,11 @@ function renderKnockoutPred(name){
   // actual teams at the box's two positions (for the real score)
   const mbox=(m,pA,aA,pB,aB,pick,round)=>{
     const actA=round==='r32'?pA:aA,actB=round==='r32'?pB:aB,sc=koScore(actA,actB);
-    return koBox('',row(pA,aA,pick,round,sc?sc[0]:null)+row(pB,aB,pick,round,sc?sc[1]:null),m,sc?'kb-done':'');
+    // Outline a completed box red when this pick lost, green when it advanced.
+    const pickCorrect=pick&&(round==='final'?pick===champ:W[round]&&W[round].has(pick));
+    const pickWrong=pick&&!pickCorrect&&out.has(pick);
+    const cls=sc?(pickWrong?'kb-done kb-wrong':'kb-done'):'';
+    return koBox('',row(pA,aA,pick,round,sc?sc[0]:null)+row(pB,aB,pick,round,sc?sc[1]:null),m,cls);
   };
   const r32boxes=KO_R32_ORDER.map((num,i)=>mbox(A.map[num],A.r32m[i][0],'',A.r32m[i][1],'',r32[i],'r32'));
   const pairBoxes=(arr,prev,prevAct,picks,round)=>arr.map((m,k)=>mbox(m,prev[2*k],prevAct[2*k],prev[2*k+1],prevAct[2*k+1],picks[k]||'',round));
