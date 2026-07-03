@@ -1985,8 +1985,15 @@ function teamStatus(team){
   const pos=st.findIndex(t=>t.name===team)+1;
   const ord=['','1st','2nd','3rd','4th'][pos]||pos+'th';
   if(!groupComplete(g))return{label:`Group ${g} · ${ord} now`,cls:'gs'};
-  if(pos<=2)return{label:`Advanced · ${ord} in Group ${g}`,cls:'adv'};
-  if(pos===3&&computeThirdAdvancing().includes(team))return{label:`Advanced · best 3rd (Group ${g})`,cls:'adv'};
+  // Group stage done — reflect knockout progress once the bracket is set.
+  if(allR32Teams().has(team)){
+    const ROUND=['Round of 32','Round of 16','Quarterfinal','Semifinal','Final'];
+    if(KO_RESULTS.final===team)return{label:'Champion 🏆',cls:'adv'};
+    // rounds already won → the round they're currently in (or lost in next)
+    const wins=['r32','r16','qf','sf'].reduce((c,r)=>c+((KO_RESULTS[r]||[]).includes(team)?1:0),0);
+    if((KO_RESULTS.out||[]).includes(team))return{label:`Eliminated · ${ROUND[wins]}`,cls:'elim'};
+    return{label:`In · ${ROUND[wins]}`,cls:'adv'};
+  }
   return{label:`Eliminated · ${ord} in Group ${g}`,cls:'elim'};
 }
 
