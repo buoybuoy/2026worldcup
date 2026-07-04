@@ -1327,15 +1327,21 @@ function koRoundForTeams(home,away){
   const won=t=>['r32','r16','qf','sf'].reduce((c,r)=>c+((KO_RESULTS[r]||[]).includes(t)?1:0),0)+(KO_RESULTS.final===t?1:0);
   return rounds[Math.min(won(home),won(away))]||null;
 }
-// Today's knockout fixtures with resolved teams (R32) or feeder placeholders.
+// Today's knockout fixtures with resolved teams (feeders fill in as rounds are
+// decided) or placeholders until a match's feeders are known.
 function knockoutToday(today){
   const out=[];
+  // Resolve every match's two teams from the bracket — winners feed forward.
+  const teamsByNum={};
+  KO_R32_ORDER.forEach((num,i)=>{teamsByNum[num]=r32Teams(KNOCKOUT_R32.find(m=>m.num===num).slot);});
+  const wOf=num=>{const t=teamsByNum[num];return t?koWinner(t[0],t[1]):'';};
+  [['R16'],['QF'],['SF'],['F']].forEach(([k])=>{(KNOCKOUT_LATER[k]||[]).forEach(m=>{teamsByNum[m.num]=[wOf(m.f[0]),wOf(m.f[1])];});});
   KNOCKOUT_R32.forEach(m=>{if(m.date!==today)return;const[h,a]=r32Teams(m.slot);out.push({num:m.num,key:'KO|'+m.num,round:'r32',label:'Round of 32',time:m.time,h:h||'TBD',a:a||'TBD',resolved:!!(h&&a)});});
   [['R16','r16','Round of 16'],['QF','qf','Quarterfinal'],['SF','sf','Semifinal'],['F','final','Final']].forEach(([k,round,label])=>{
-    (KNOCKOUT_LATER[k]||[]).forEach(m=>{if(m.date!==today)return;out.push({num:m.num,key:'KO|'+m.num,round,label,time:m.time,h:'Winner M'+m.f[0],a:'Winner M'+m.f[1],resolved:false});});
+    (KNOCKOUT_LATER[k]||[]).forEach(m=>{if(m.date!==today)return;const t=teamsByNum[m.num]||['',''];out.push({num:m.num,key:'KO|'+m.num,round,label,time:m.time,h:t[0]||('Winner M'+m.f[0]),a:t[1]||('Winner M'+m.f[1]),resolved:!!(t[0]&&t[1])});});
   });
   const tp=KNOCKOUT_LATER.THIRD;
-  if(tp&&tp.date===today)out.push({num:tp.num,key:'KO|'+tp.num,round:null,label:'Third-place play-off',time:tp.time,h:'Loser M'+tp.f[0],a:'Loser M'+tp.f[1],resolved:false});
+  if(tp&&tp.date===today){const lo=fn=>{const t=teamsByNum[fn],w=t?koWinner(t[0],t[1]):'';return w?(w===t[0]?t[1]:t[0]):'';};const h=lo(tp.f[0]),a=lo(tp.f[1]);out.push({num:tp.num,key:'KO|'+tp.num,round:null,label:'Third-place play-off',time:tp.time,h:h||('Loser M'+tp.f[0]),a:a||('Loser M'+tp.f[1]),resolved:!!(h&&a)});}
   return out.sort((x,y)=>x.time.localeCompare(y.time));
 }
 // Who each bracket entrant roots for: the team (of these two) they picked to
