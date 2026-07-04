@@ -1375,9 +1375,14 @@ function koFans(round,h,a){
   // Rank-based lean for the no-points crowd: whoever picked the winner gains V,
   // so root for the result under which fewer rivals climb past you.
   const V=KO_SCORING[KO_ROUND_KEY[round]]||0;
-  const base={};Object.keys(KNOCKOUT_PREDS).forEach(n=>base[n]=totalScore(n));
   const hSet=new Set(hFans),aSet=new Set(aFans);
-  const rankIf=(P,winners)=>1+Object.keys(base).filter(x=>x!==P&&base[x]+(winners.has(x)?V:0)>base[P]).length;
+  // Base standings EXCLUDING this match's own points: if the game is already
+  // decided its V is in totalScore, so strip it from the winner's backers. Keeps
+  // a match's lean stable — it won't shift the moment the result comes in.
+  const winners=round==='final'?(KO_RESULTS.final?[KO_RESULTS.final]:[]):(KO_RESULTS[round]||[]);
+  const wonBackers=winners.includes(h)?hSet:(winners.includes(a)?aSet:null);
+  const base={};Object.keys(KNOCKOUT_PREDS).forEach(n=>base[n]=totalScore(n)-((wonBackers&&wonBackers.has(n))?V:0));
+  const rankIf=(P,winSet)=>1+Object.keys(base).filter(x=>x!==P&&base[x]+(winSet.has(x)?V:0)>base[P]).length;
   const hLean=[],aLean=[],noStake=[];
   noFans.forEach(P=>{
     const rh=rankIf(P,hSet),ra=rankIf(P,aSet);
