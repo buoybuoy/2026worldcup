@@ -1975,8 +1975,16 @@ function koShortTime(t){const[h,mn]=t.split(':').map(Number);const ap=h>=12?'PM'
 function koMatchHead(m){return `M${m.num} · ${koShortDate(m.date)} · ${koShortTime(m.time)}`;}
 function koBox(head,rows,m,cls){return `<div class="kb-box${cls?' '+cls:''}">${head?`<div class="kb-box-head">${esc(head)}</div>`:''}${rows}${m&&m.city?`<div class="kb-box-foot" title="${esc(m.venue+', '+m.city)}">${esc(m.city)}</div>`:''}</div>`;}
 function koColumn(title,boxes,isLast){let h=`<div class="kb-round"><div class="kb-round-title">${esc(title)}</div>`;boxes.forEach((bx,i)=>{h+=`<div class="kb-cell">${bx}${(!isLast&&i%2===0)?'<span class="kb-vert"></span>':''}</div>`;});return h+'</div>';}
-// Winner of a matchup from KO_RESULTS.out (loser set); '' if undecided/unknown.
-function koWinner(x,y){const out=KO_RESULTS.out||[];return !x||!y?'':(out.includes(x)&&!out.includes(y)?y:(out.includes(y)&&!out.includes(x)?x:''));}
+// Winner of a matchup: whichever team has won more knockout rounds (the loser
+// stopped at this match). Robust once a winner advances and later loses — using
+// the loser set alone breaks then, because both teams end up eliminated. '' if
+// the match isn't decided yet (both have won the same number of rounds).
+function koWinner(x,y){
+  if(!x||!y)return '';
+  const w=t=>['r32','r16','qf','sf'].reduce((c,r)=>c+((KO_RESULTS[r]||[]).includes(t)?1:0),0)+(KO_RESULTS.final===t?1:0);
+  const wx=w(x),wy=w(y);
+  return wx>wy?x:(wy>wx?y:'');
+}
 // Final score of a knockout match as [goalsA, goalsB], or null if unknown.
 function koScore(a,b){
   if(!a||!b)return null;
