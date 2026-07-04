@@ -386,6 +386,7 @@
   .today-fans.right { justify-content: flex-end; }
   .fan-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 500; padding: 2px 7px; border-radius: 4px; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary); white-space: nowrap; }
   .fan-chip.advancing { background: var(--green-light); color: var(--green-dark); border-color: #c3dda0; }
+  .fan-chip.rank { background: transparent; border-style: dashed; color: var(--text-secondary); font-weight: 500; opacity: 0.85; }
   .fan-chip .fan-pos { font-family: 'Teko', sans-serif; font-size: 12px; opacity: 0.75; }
   .no-fans-label { font-size: 11px; color: var(--text-secondary); font-style: italic; }
   .today-nopref { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-secondary); }
@@ -1168,6 +1169,7 @@ async function fetchLiveScores(){
       koDates.forEach(d=>{const ymd=d.replace(/-/g,'');if(ymd<=todayPT)dates.add(ymd);});
     }
     const dateSet=[...dates].sort();  // ascending → earlier rounds recorded first
+    _koMatchMap=null;  // rebuild the KO matchup→match map with the latest results
     const newLive={};
     let scoresChanged=false;
     for(const d of dateSet){
@@ -1310,13 +1312,23 @@ function fmtKOTime(t){const[hr,m]=t.split(':').map(Number);const ap=hr>=12?'PM':
 // Map a live ESPN matchup (two team names) to a knockout match key, currently
 // for the Round of 32 (the only matchups resolvable from final group standings).
 // Cached: the R32 matchups are fixed once the group stage is complete.
-let _koR32Map=null;
+// Map an ESPN matchup (home|away) to its knockout match key, for EVERY round
+// whose teams are currently known (R32 from the group standings, later rounds
+// resolved as feeders are decided). Rebuilt each poll (KO_RESULTS changes), so
+// R16/QF/SF/Final games attach their live score, not just the Round of 32.
+let _koMatchMap=null;
 function koMatchInfo(home,away){
-  if(!_koR32Map){
-    _koR32Map={};
-    KNOCKOUT_R32.forEach(m=>{const[h,a]=r32Teams(m.slot);if(h&&a){_koR32Map[h+'|'+a]={key:'KO|'+m.num,swapped:false};_koR32Map[a+'|'+h]={key:'KO|'+m.num,swapped:true};}});
+  if(!_koMatchMap){
+    _koMatchMap={};
+    const teamsByNum={};
+    KO_R32_ORDER.forEach((num,i)=>{teamsByNum[num]=r32Teams(KNOCKOUT_R32.find(m=>m.num===num).slot);});
+    const wOf=num=>{const t=teamsByNum[num];return t?koWinner(t[0],t[1]):'';};
+    [['R16'],['QF'],['SF'],['F']].forEach(([k])=>{(KNOCKOUT_LATER[k]||[]).forEach(m=>{teamsByNum[m.num]=[wOf(m.f[0]),wOf(m.f[1])];});});
+    const tp=KNOCKOUT_LATER.THIRD;
+    if(tp){const lo=fn=>{const t=teamsByNum[fn],w=t?koWinner(t[0],t[1]):'';return w?(w===t[0]?t[1]:t[0]):'';};teamsByNum[tp.num]=[lo(tp.f[0]),lo(tp.f[1])];}
+    Object.keys(teamsByNum).forEach(num=>{const t=teamsByNum[num];if(t&&t[0]&&t[1]){_koMatchMap[t[0]+'|'+t[1]]={key:'KO|'+num,swapped:false};_koMatchMap[t[1]+'|'+t[0]]={key:'KO|'+num,swapped:true};}});
   }
-  return _koR32Map[home+'|'+away]||null;
+  return _koMatchMap[home+'|'+away]||null;
 }
 const KO_ROUND_SIZE={r32:16,r16:8,qf:4,sf:2};
 // Which knockout round a matchup belongs to, inferred from how many KO rounds
@@ -1345,7 +1357,11 @@ function knockoutToday(today){
   return out.sort((x,y)=>x.time.localeCompare(y.time));
 }
 // Who each bracket entrant roots for: the team (of these two) they picked to
-// win this match. No pick for either team → no stake.
+// win this match earns them that round's points. Entrants who picked neither
+// get no points, but the result still moves their leaderboard rank (rivals who
+// picked the winner climb), so they "lean" toward whichever result keeps them
+// ranked higher; truly indifferent ones are left with no stake.
+const KO_ROUND_KEY={r32:'R32',r16:'R16',qf:'QF',sf:'SF',final:'F'};
 function koFans(round,h,a){
   const hFans=[],aFans=[],noFans=[];
   Object.keys(KNOCKOUT_PREDS).forEach(name=>{
@@ -1355,7 +1371,18 @@ function koFans(round,h,a){
     else if(preds.includes(a))aFans.push(name);
     else noFans.push(name);
   });
-  return{hFans,aFans,noFans};
+  // Rank-based lean for the no-points crowd: whoever picked the winner gains V,
+  // so root for the result under which fewer rivals climb past you.
+  const V=KO_SCORING[KO_ROUND_KEY[round]]||0;
+  const base={};Object.keys(KNOCKOUT_PREDS).forEach(n=>base[n]=totalScore(n));
+  const hSet=new Set(hFans),aSet=new Set(aFans);
+  const rankIf=(P,winners)=>1+Object.keys(base).filter(x=>x!==P&&base[x]+(winners.has(x)?V:0)>base[P]).length;
+  const hLean=[],aLean=[],noStake=[];
+  noFans.forEach(P=>{
+    const rh=rankIf(P,hSet),ra=rankIf(P,aSet);
+    if(V&&rh<ra)hLean.push(P);else if(V&&ra<rh)aLean.push(P);else noStake.push(P);
+  });
+  return{hFans,aFans,hLean,aLean,noStake,noFans};
 }
 function buildKOCard(m){
   const ld=liveData[m.key];
@@ -1371,19 +1398,24 @@ function buildKOCard(m){
   else if(isFinal)statusPill=`<span class="status-pill done">Final${ld.clock&&/pen|pk|shootout/i.test(ld.clock)?' (pens)':''}</span>`;
   else statusPill=`<span class="status-pill">${m.time?fmtKOTime(m.time):'Upcoming'}</span>`;
   const scoreHtml=hasScore?`<div class="today-score">${sc[0]}–${sc[1]}</div>`:`<div class="today-score-vs">vs</div>`;
-  const col=(arr,won)=>arr.length?arr.map(n=>`<span class="fan-chip${won?' advancing':''}">${esc(n)}</span>`).join(''):`<span class="no-fans-label">—</span>`;
+  // point-rooters (solid chips) + rank-only leaners (dashed 📈 chips, no points)
+  const cell=(fans,lean,team,won)=>{
+    const pts=fans.map(n=>`<span class="fan-chip${won?' advancing':''}">${esc(n)}</span>`).join('');
+    const rk=lean.map(n=>`<span class="fan-chip rank" title="No points at stake — but a ${esc(team)} win keeps ${esc(n)} ranked higher">📈 ${esc(n)}</span>`).join('');
+    return (pts+rk)||`<span class="no-fans-label">—</span>`;
+  };
   let body,noStake='';
   if(!m.resolved){
     body=`<div class="today-ko-note">Rooting appears once both teams are set.</div>`;
   } else if(Object.keys(KNOCKOUT_PREDS).length===0){
     body=`<div class="today-ko-note">🏟️ Rooting appears once Round-of-32 bracket picks lock (today, 12:00 PM PT).</div>`;
   } else {
-    const{hFans,aFans,noFans}=koFans(m.round,m.h,m.a);
+    const{hFans,aFans,hLean,aLean,noStake:noStakeFans}=koFans(m.round,m.h,m.a);
     body=`<div class="today-fans-row two">`
-      +`<div class="today-fans-col"><div class="today-fans-col-label">${esc(m.h)}</div><div class="today-fans">${col(hFans,hWon)}</div></div>`
-      +`<div class="today-fans-col right"><div class="today-fans-col-label">${esc(m.a)}</div><div class="today-fans right">${col(aFans,aWon)}</div></div>`
+      +`<div class="today-fans-col"><div class="today-fans-col-label">${esc(m.h)}</div><div class="today-fans">${cell(hFans,hLean,m.h,hWon)}</div></div>`
+      +`<div class="today-fans-col right"><div class="today-fans-col-label">${esc(m.a)}</div><div class="today-fans right">${cell(aFans,aLean,m.a,aWon)}</div></div>`
       +`</div>`;
-    if(noFans.length)noStake=`<div class="today-nopref" title="They didn't pick either team to win this match">🤷 No stake: ${noFans.map(esc).join(', ')}</div>`;
+    if(noStakeFans.length)noStake=`<div class="today-nopref" title="This result doesn't change their rank either way">🤷 No stake: ${noStakeFans.map(esc).join(', ')}</div>`;
   }
   return `<div class="today-match-card">`
     +`<div class="today-match-header"><span class="today-group-badge ko">${esc(m.label)}</span>${statusPill}</div>`
