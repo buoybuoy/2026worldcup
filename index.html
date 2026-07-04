@@ -1705,7 +1705,9 @@ function renderKnockoutPred(name){
   const r32boxes=KO_R32_ORDER.map((num,i)=>mbox(A.map[num],A.r32m[i][0],'',A.r32m[i][1],'',r32[i],'r32'));
   const pairBoxes=(arr,prev,prevAct,picks,round)=>arr.map((m,k)=>mbox(m,prev[2*k],prevAct[2*k],prev[2*k+1],prevAct[2*k+1],picks[k]||'',round));
   const pts=scoreKnockout(name);
-  const maxPts=16*KO_SCORING.R32+8*KO_SCORING.R16+4*KO_SCORING.QF+2*KO_SCORING.SF+KO_SCORING.F;
+  // Highest KO score still reachable: points earned + points still earnable on
+  // picks whose team is alive (matches the leaderboard's Max column).
+  const maxPts=pts+koRemaining(name);
   let html=`<div class="kp-subtitle">${pts} pts so far · max ${maxPts}</div><div class="kb-scroll"><div class="kb kb-compact">`;
   html+=koColumn('Round of 32',r32boxes,false);
   html+=koColumn('Round of 16',pairBoxes(KNOCKOUT_LATER.R16,r32,A.r32w,r16,'r16'),false);
