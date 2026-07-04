@@ -849,6 +849,10 @@ const MATCH_TIMES = {
 };
 // US English broadcast channel per match (FOX / FS1), maintained by the bot.
 const CHANNELS = {'A|Mexico|Czechia':'FOX','A|Mexico|South Africa':'FOX','A|Mexico|South Korea':'FOX','A|South Africa|Czechia':'FOX','A|South Africa|South Korea':'FS1','A|South Korea|Czechia':'FS1','B|Bosnia and Herzegovina|Qatar':'FS1','B|Canada|Bosnia and Herzegovina':'FOX','B|Canada|Qatar':'FS1','B|Canada|Switzerland':'FOX','B|Qatar|Switzerland':'FOX','B|Switzerland|Bosnia and Herzegovina':'FOX','C|Brazil|Haiti':'FOX','C|Brazil|Morocco':'FOX','C|Brazil|Scotland':'FOX','C|Morocco|Haiti':'FS1','C|Scotland|Haiti':'FOX','C|Scotland|Morocco':'FOX','D|Australia|Paraguay':'FS1','D|Australia|Türkiye':'FS1','D|Paraguay|Türkiye':'FS1','D|USA|Australia':'FOX','D|USA|Paraguay':'FOX','D|USA|Türkiye':'FOX','E|Ecuador|Curaçao':'FS1','E|Ecuador|Ivory Coast':'FS1','E|Germany|Curaçao':'FOX','E|Germany|Ecuador':'FOX','E|Germany|Ivory Coast':'FOX','E|Ivory Coast|Curaçao':'FS1','F|Japan|Sweden':'FOX','F|Japan|Tunisia':'FS1','F|Netherlands|Japan':'FOX','F|Netherlands|Sweden':'FOX','F|Netherlands|Tunisia':'FS1','F|Tunisia|Sweden':'FS1','G|Belgium|Egypt':'FOX','G|Belgium|Iran':'FS1','G|Belgium|New Zealand':'FOX','G|Egypt|Iran':'FS1','G|Egypt|New Zealand':'FS1','G|Iran|New Zealand':'FS1','H|Saudi Arabia|Cape Verde':'FS1','H|Spain|Cape Verde':'FOX','H|Spain|Saudi Arabia':'FOX','H|Spain|Uruguay':'FOX','H|Uruguay|Cape Verde':'FS1','H|Uruguay|Saudi Arabia':'FS1','I|France|Iraq':'FOX','I|France|Norway':'FOX','I|France|Senegal':'FOX','I|Iraq|Norway':'FOX','I|Senegal|Iraq':'FS1','I|Senegal|Norway':'FOX','J|Algeria|Austria':'FS1','J|Algeria|Jordan':'FS1','J|Argentina|Algeria':'FOX','J|Argentina|Austria':'FOX','J|Argentina|Jordan':'FOX','J|Austria|Jordan':'FS1','K|Colombia|DR Congo':'FS1','K|Portugal|Colombia':'FOX','K|Portugal|DR Congo':'FOX','K|Portugal|Uzbekistan':'FOX','K|Uzbekistan|Colombia':'FS1','K|Uzbekistan|DR Congo':'FS1','L|Croatia|Ghana':'FS1','L|England|Croatia':'FOX','L|England|Ghana':'FOX','L|England|Panama':'FOX','L|Panama|Croatia':'FOX','L|Panama|Ghana':'FS1'};
+// US English broadcast channel per knockout match, keyed by match number
+// (teams change, numbers don't). Maintained by the bot; FOX carries every
+// knockout game except two Round-of-32 fixtures that aired on FS1 (82, 85).
+const KO_CHANNELS = {73:'FOX',74:'FOX',75:'FOX',76:'FOX',77:'FOX',78:'FOX',79:'FOX',80:'FOX',81:'FOX',82:'FS1',83:'FOX',84:'FOX',85:'FS1',86:'FOX',87:'FOX',88:'FOX',89:'FOX',90:'FOX',91:'FOX',92:'FOX',93:'FOX',94:'FOX',95:'FOX',96:'FOX',97:'FOX',98:'FOX',99:'FOX',100:'FOX',101:'FOX',102:'FOX',103:'FOX',104:'FOX'};
 
 let selectedPred=FRIEND_NAMES[Math.floor(Math.random()*FRIEND_NAMES.length)];
 const scores=Object.assign({},CONFIRMED_SCORES);
@@ -1001,11 +1005,11 @@ function renderSchedule(){
   ['R16','QF','SF','F'].forEach(k=>(KNOCKOUT_LATER[k]||[]).forEach(m=>{const a=wOf(m.f[0]),b=wOf(m.f[1]);koMap[m.num]={teams:[a,b],win:koWinner(a,b)};}));
   {const tp=KNOCKOUT_LATER.THIRD;const lo=fn=>{const x=koMap[fn];return x&&x.win?(x.win===x.teams[0]?x.teams[1]:x.teams[0]):'';};koMap[tp.num]={teams:[lo(tp.f[0]),lo(tp.f[1])],win:''};}
   const seedR32=slot=>slot.type==='ru-ru'?['Runner-up '+slot.a,'Runner-up '+slot.b]:slot.type==='w-ru'?['Winner '+slot.w,'Runner-up '+slot.ru]:['Winner '+slot.w,'3rd place'];
-  KNOCKOUT_R32.forEach(m=>{const t=koMap[m.num].teams,lbl=seedR32(m.slot);allMatches.push({type:'ko',rb:'R32',round:'Round of 32',date:m.date,time:m.time,venue:m.venue,city:m.city,s1:t[0]||lbl[0],s2:t[1]||lbl[1],win:koMap[m.num].win});});
+  KNOCKOUT_R32.forEach(m=>{const t=koMap[m.num].teams,lbl=seedR32(m.slot);allMatches.push({type:'ko',num:m.num,rb:'R32',round:'Round of 32',date:m.date,time:m.time,venue:m.venue,city:m.city,s1:t[0]||lbl[0],s2:t[1]||lbl[1],win:koMap[m.num].win});});
   [['R16','Round of 16'],['QF','Quarterfinal'],['SF','Semifinal'],['F','Final']].forEach(([k,full])=>{
-    (KNOCKOUT_LATER[k]||[]).forEach(m=>{const t=koMap[m.num].teams;allMatches.push({type:'ko',rb:k==='F'?'Final':k,round:full,date:m.date,time:m.time,venue:m.venue,city:m.city,s1:t[0]||('Winner M'+m.f[0]),s2:t[1]||('Winner M'+m.f[1]),win:koMap[m.num].win});});
+    (KNOCKOUT_LATER[k]||[]).forEach(m=>{const t=koMap[m.num].teams;allMatches.push({type:'ko',num:m.num,rb:k==='F'?'Final':k,round:full,date:m.date,time:m.time,venue:m.venue,city:m.city,s1:t[0]||('Winner M'+m.f[0]),s2:t[1]||('Winner M'+m.f[1]),win:koMap[m.num].win});});
   });
-  {const tp=KNOCKOUT_LATER.THIRD;const t=koMap[tp.num].teams;allMatches.push({type:'ko',rb:'3rd',round:'Third-place play-off',date:tp.date,time:tp.time,venue:tp.venue,city:tp.city,s1:t[0]||('Loser M'+tp.f[0]),s2:t[1]||('Loser M'+tp.f[1]),win:koMap[tp.num].win});}
+  {const tp=KNOCKOUT_LATER.THIRD;const t=koMap[tp.num].teams;allMatches.push({type:'ko',num:tp.num,rb:'3rd',round:'Third-place play-off',date:tp.date,time:tp.time,venue:tp.venue,city:tp.city,s1:t[0]||('Loser M'+tp.f[0]),s2:t[1]||('Loser M'+tp.f[1]),win:koMap[tp.num].win});}
   allMatches.sort((a,b)=>a.date!==b.date?a.date.localeCompare(b.date):a.time.localeCompare(b.time));
 
   // Group by date
@@ -1020,6 +1024,7 @@ function renderSchedule(){
     if(m.type==='ko'){
       const w1=m.win&&m.s1===m.win,w2=m.win&&m.s2===m.win,l1=m.win&&!w1,l2=m.win&&!w2;
       const koSide=(name,won,lost,right)=>`<span class="sched-team${right?' right':''}${won?' sched-win':lost?' sched-lost':''}">${lost?'<s>'+esc(name)+'</s>':esc(name)}${won?' ✓':''}</span>`;
+      const koChan=KO_CHANNELS[m.num];
       return `<div class="schedule-match-row ko-row${m.win?' played':''}" title="${esc(m.round+' · '+m.venue+', '+m.city)}">
         <span class="sched-time">${timeStr}</span>
         <span class="sched-group sched-ko">${m.rb}</span>
@@ -1028,6 +1033,7 @@ function renderSchedule(){
           <span class="sched-vs">vs</span>
           ${koSide(m.s2,w2,l2,true)}
         </div>
+        <span class="sched-channel">${koChan?esc(koChan):''}</span>
       </div>`;
     }
     const sc=scores[m.key];
