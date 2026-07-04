@@ -70,7 +70,9 @@ def load():
         dates['R32'].add(d)
     later = obj('KNOCKOUT_LATER')
     for rnd in ('R16', 'QF', 'SF', 'F'):
-        block = re.search(rnd + r':\[(.*?)\]', later, re.S)
+        # Match to the array-closing ']' on its own line (entries hold inline
+        # feeder arrays like f:[74,77]); \b so 'F' doesn't match inside 'SF'.
+        block = re.search(r'\b' + rnd + r':\[(.*?)\n\s*\]', later, re.S)
         if block:
             for d in re.findall(r"date:'([0-9-]+)'", block.group(1)):
                 dates[rnd].add(d)
@@ -197,7 +199,10 @@ def ranks(names, tot):
 
 def picked_winner(KP, name, rnd, team):
     p = KP.get(name, {})
-    return (team in p.get('final', '')) if rnd == 'F' else (team in p.get(ROUND_PRED[rnd], []))
+    if rnd == 'F':
+        return team in p.get('final', '')
+    key = ROUND_PRED.get(rnd)  # None for non-scored rounds (e.g. 3rd-place play-off)
+    return bool(key) and team in p.get(key, [])
 
 
 def main():
@@ -268,12 +273,16 @@ def main():
     if not any_bust:
         print('  (none)')
 
-    # next slate
-    future = sorted(d for d in fixtures if d > recap_date)
+    # next slate — the next date that has a bracket-scored round (skip the
+    # third-place play-off, which isn't part of anyone's bracket picks)
+    scored = lambda d: any(r in ROUND_PRED for r, *_ in fixtures[d])
+    future = sorted(d for d in fixtures if d > recap_date and scored(d))
     nxt = future[0] if future else None
-    print(f"\nNEXT SLATE: {nxt or '(none scheduled)'}")
+    print(f"\nNEXT SLATE: {nxt or '(none scheduled yet)'}")
     if nxt:
         for rnd, h, a, done in fixtures[nxt]:
+            if rnd not in ROUND_PRED:
+                continue
             sh = sum(1 for n in NAMES if picked_winner(KP, n, rnd, h))
             sa = sum(1 for n in NAMES if picked_winner(KP, n, rnd, a))
             label = '?' if (not h or not a) else f'{h} ({sh}/{N}) vs {a} ({sa}/{N})'
@@ -345,7 +354,7 @@ def main():
     if nxt:
         seg = []
         for rnd, h, a, done in fixtures[nxt]:
-            if h and a:
+            if h and a and rnd in ROUND_PRED:
                 sh = sum(1 for n in NAMES if picked_winner(KP, n, rnd, h))
                 sa = sum(1 for n in NAMES if picked_winner(KP, n, rnd, a))
                 fav, fc = (h, sh) if sh >= sa else (a, sa)
