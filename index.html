@@ -2048,12 +2048,12 @@ function renderGoldenBoot(){
   el.innerHTML=`<div class="gb-list">${rows}</div>`;
 }
 
-function dismissAnnounce(){const e=document.getElementById('announcement');if(e)e.style.display='none';try{localStorage.setItem('annKO2026','1');}catch(_){}}
+function dismissAnnounce(){const e=document.getElementById('announcement');if(e)e.style.display='none';try{localStorage.setItem('annKO2026ko','1');}catch(_){}}
 (function(){
   const el=document.getElementById('announcement');if(!el)return;
   const todayPT=new Date().toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'});
-  let dismissed=false;try{dismissed=!!localStorage.getItem('annKO2026');}catch(_){}
-  if(dismissed||todayPT>'2026-06-28')el.style.display='none'; // auto-hide after the deadline
+  let dismissed=false;try{dismissed=!!localStorage.getItem('annKO2026ko');}catch(_){}
+  if(dismissed||todayPT>'2026-07-19')el.style.display='none'; // show through the knockouts; auto-hide after the final
 })();
 
 renderAll();
