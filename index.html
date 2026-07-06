@@ -1197,7 +1197,17 @@ async function fetchLiveScores(){
               const kscore=ko.swapped?[String(kas),String(khs)]:[String(khs),String(kas)];
               let winner=null;
               if(winTeam===home)winner=ko.swapped?'a':'h';else if(winTeam===away)winner=ko.swapped?'h':'a';
-              newLive[ko.key]={state:kst,score:kscore,clock:comp.status.type.shortDetail||'',winner};
+              // Goal scorers — exclude shootout kicks (dt.shootout); own goals are
+              // credited to the benefiting team, same as the group-match logic.
+              const kHome=[],kAway=[];
+              (comp.details||[]).forEach(dt=>{
+                if(!dt.scoringPlay||dt.shootout)return;
+                const ath=(dt.athletesInvolved||[])[0];
+                const entry={name:ath?ath.displayName:'',min:(dt.clock&&dt.clock.displayValue)||'',og:!!dt.ownGoal,pen:!!dt.penaltyKick};
+                (String(dt.team&&dt.team.id)===String(homeC.id)?kHome:kAway).push(entry);
+              });
+              const scorers=ko.swapped?{home:kAway,away:kHome}:{home:kHome,away:kAway};
+              newLive[ko.key]={state:kst,score:kscore,clock:comp.status.type.shortDetail||'',winner,scorers};
             }
             // Record the knockout final score (keyed by sorted team pair).
             if(done){
@@ -1423,11 +1433,14 @@ function buildKOCard(m){
       +`</div>`;
     if(noStakeFans.length)noStake=`<div class="today-nopref" title="This result doesn't change their rank either way">🤷 No stake: ${noStakeFans.map(esc).join(', ')}</div>`;
   }
+  const koScorers=ld&&ld.scorers;
+  const scorerLine=list=>(!list||!list.length)?''
+    :`<div class="today-scorers">${list.map(s=>`<div class="today-scorer">⚽ ${esc(s.name)}${s.min?' '+esc(s.min):''}${s.pen?' (P)':''}${s.og?' (OG)':''}</div>`).join('')}</div>`;
   return `<div class="today-match-card">`
     +`<div class="today-match-header"><span class="today-group-badge ko">${esc(m.label)}</span>${statusPill}</div>`
-    +`<div class="today-scoreline"><div class="today-team-side"><div class="today-team-name">${esc(m.h)}</div></div>`
+    +`<div class="today-scoreline"><div class="today-team-side"><div class="today-team-name">${esc(m.h)}</div>${scorerLine(koScorers&&koScorers.home)}</div>`
     +`<div class="today-score-box">${scoreHtml}</div>`
-    +`<div class="today-team-side right"><div class="today-team-name">${esc(m.a)}</div></div></div>`
+    +`<div class="today-team-side right"><div class="today-team-name">${esc(m.a)}</div>${scorerLine(koScorers&&koScorers.away)}</div></div>`
     +`${body}${noStake}</div>`;
 }
 
