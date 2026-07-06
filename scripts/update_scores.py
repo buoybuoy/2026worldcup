@@ -105,8 +105,8 @@ def find_match_key(home, away):
 
 
 def fetch_all():
-    """Return (scores, times, dates, scorers, channels, ko_results)."""
-    scores, times, dates, scorers, channels = {}, {}, {}, {}, {}
+    """Return (scores, times, dates, scorers, assists, channels, ko_results, ko_scores)."""
+    scores, times, dates, scorers, assists, channels = {}, {}, {}, {}, {}, {}
     ko_results = {'r32': [], 'r16': [], 'qf': [], 'sf': [], 'final': '', 'out': []}
     ko_scores = {}
     start = date(2026, 6, 11)
@@ -141,16 +141,33 @@ def fetch_all():
                     id2name = {str(c.get('id')): normalize(c['team']['displayName'])
                                for c in comp['competitors']}
                     for det in comp.get('details', []):
-                        if not det.get('scoringPlay'):
-                            continue
-                        typ = ((det.get('type') or {}).get('text') or '').lower()
-                        if 'own goal' in typ:
+                        if not det.get('scoringPlay') or det.get('shootout'):
+                            continue  # skip penalty-shootout kicks (not real goals)
+                        if det.get('ownGoal') or 'own goal' in ((det.get('type') or {}).get('text') or '').lower():
                             continue
                         ath = det.get('athletesInvolved') or []
                         pname = ath[0].get('displayName') if ath else None
                         tname = id2name.get(str((det.get('team') or {}).get('id')))
                         if pname and tname:
                             scorers[(pname, tname)] = scorers.get((pname, tname), 0) + 1
+
+                    # Assists — the scoreboard feed omits them, so read the match
+                    # summary's per-player goalAssists (Golden Boot tiebreaker).
+                    try:
+                        sr = requests.get(
+                            f'https://site.api.espn.com/apis/site/v2/sports/soccer/'
+                            f'fifa.world/summary?event={event["id"]}',
+                            timeout=15, headers={'User-Agent': 'WorldCupTracker/1.0'})
+                        for roster in sr.json().get('rosters', []):
+                            rt = normalize(roster.get('team', {}).get('displayName', ''))
+                            for e in roster.get('roster', []):
+                                pn = (e.get('athlete') or {}).get('displayName')
+                                st = {x.get('name'): x.get('value') for x in e.get('stats', [])}
+                                a = int(st.get('goalAssists') or 0)
+                                if pn and rt and a:
+                                    assists[(pn, rt)] = assists.get((pn, rt), 0) + a
+                    except Exception as ex:
+                        print(f'  Assist fetch failed for {event.get("id")}: {ex}')
 
                 key, swapped = find_match_key(home, away)
                 if key is None:
@@ -197,10 +214,10 @@ def fetch_all():
 
         current += timedelta(days=1)
 
-    return scores, times, dates, scorers, channels, ko_results, ko_scores
+    return scores, times, dates, scorers, assists, channels, ko_results, ko_scores
 
 
-def update_html(filepath, scores, times, dates, scorers, channels, ko_results, ko_scores):
+def update_html(filepath, scores, times, dates, scorers, assists, channels, ko_results, ko_scores):
     with open(filepath, encoding='utf-8') as f:
         content = f.read()
     original = content
@@ -241,12 +258,15 @@ def update_html(filepath, scores, times, dates, scorers, channels, ko_results, k
             date_changes += 1
         content = new_content
 
-    # 4) SCORERS — Golden Boot tally, sorted by goals desc then name
+    # 4) SCORERS — Golden Boot tally, sorted by goals desc, then the tiebreakers:
+    #    most assists, then name (fewest-minutes tiebreaker not tracked yet).
     def esc(s):
         return s.replace('\\', '\\\\').replace("'", "\\'")
-    rows = sorted(scorers.items(), key=lambda kv: (-kv[1], kv[0][0]))
+    rows = sorted(scorers.items(),
+                  key=lambda kv: (-kv[1], -assists.get(kv[0], 0), kv[0][0]))
     scorers_js = '[' + ','.join(
-        "{p:'%s',t:'%s',g:%d}" % (esc(p), esc(t), n) for (p, t), n in rows
+        "{p:'%s',t:'%s',g:%d,a:%d}" % (esc(p), esc(t), n, assists.get((p, t), 0))
+        for (p, t), n in rows
     ) + ']'
     content = re.sub(r'const SCORERS=\[[^\]]*\];', f'const SCORERS={scorers_js};', content)
 
@@ -279,9 +299,9 @@ def update_html(filepath, scores, times, dates, scorers, channels, ko_results, k
 
 if __name__ == '__main__':
     print('Fetching scores, kickoff times, scorers, and channels...')
-    scores, times, dates, scorers, channels, ko_results, ko_scores = fetch_all()
+    scores, times, dates, scorers, assists, channels, ko_results, ko_scores = fetch_all()
     ko_n = sum(len(ko_results[r]) for r in ('r32', 'r16', 'qf', 'sf')) + (1 if ko_results['final'] else 0)
     print(f'Found {len(scores)} completed matches, {len(times)} scheduled kickoffs, '
           f'{len(scorers)} scorers, {len(channels)} channels, {ko_n} knockout results, '
           f'{len(ko_scores)} knockout scores.')
-    update_html('index.html', scores, times, dates, scorers, channels, ko_results, ko_scores)
+    update_html('index.html', scores, times, dates, scorers, assists, channels, ko_results, ko_scores)
