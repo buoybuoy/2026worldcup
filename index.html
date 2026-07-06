@@ -1397,11 +1397,19 @@ function koFans(round,h,a){
   const winners=round==='final'?(KO_RESULTS.final?[KO_RESULTS.final]:[]):(KO_RESULTS[round]||[]);
   const wonBackers=winners.includes(h)?hSet:(winners.includes(a)?aSet:null);
   const base={};Object.keys(KNOCKOUT_PREDS).forEach(n=>base[n]=totalScore(n)-((wonBackers&&wonBackers.has(n))?V:0));
-  const rankIf=(P,winSet)=>1+Object.keys(base).filter(x=>x!==P&&base[x]+(winSet.has(x)?V:0)>base[P]).length;
+  // Standing quality under a given result: how many rivals end up strictly above
+  // (worse rank) and, as a finer tiebreak, how many draw level (lost cushion) —
+  // so you also root against being *caught*, not just overtaken. Lower = better.
+  const standingKey=(P,winSet)=>{
+    const pv=base[P];let above=0,level=0;
+    Object.keys(base).forEach(x=>{if(x===P)return;const xv=base[x]+(winSet.has(x)?V:0);
+      if(xv>pv)above++;else if(xv===pv)level++;});
+    return above*1e6+level;
+  };
   const hLean=[],aLean=[],noStake=[];
   noFans.forEach(P=>{
-    const rh=rankIf(P,hSet),ra=rankIf(P,aSet);
-    if(V&&rh<ra)hLean.push(P);else if(V&&ra<rh)aLean.push(P);else noStake.push(P);
+    const kh=standingKey(P,hSet),ka=standingKey(P,aSet);
+    if(V&&kh<ka)hLean.push(P);else if(V&&ka<kh)aLean.push(P);else noStake.push(P);
   });
   return{hFans,aFans,hLean,aLean,noStake,noFans};
 }
