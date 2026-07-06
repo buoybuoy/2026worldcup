@@ -783,6 +783,10 @@ const KO_RESULTS={r32:['Canada','Brazil','Paraguay','Morocco','Norway','France',
 // Knockout final scores, keyed by the two teams sorted & joined with '|',
 // value "g0-g1" in that sorted order. Filled by the bot + live poller.
 const KO_SCORES={'Algeria|Switzerland':'0-2','Argentina|Cape Verde':'3-2','Australia|Egypt':'1-1','Austria|Spain':'0-3','Belgium|Senegal':'3-2','Bosnia and Herzegovina|USA':'0-2','Brazil|Japan':'2-1','Brazil|Norway':'1-2','Canada|Morocco':'0-3','Canada|South Africa':'1-0','Colombia|Ghana':'1-0','Croatia|Portugal':'1-2','DR Congo|England':'1-2','Ecuador|Mexico':'0-2','France|Paraguay':'1-0','France|Sweden':'3-0','Germany|Paraguay':'1-1','Ivory Coast|Norway':'1-2','Morocco|Netherlands':'1-1'};
+// Snapshot of knockout matches already in the committed file (the bot folds
+// their goals into SCORERS). Captured before the live poller mutates KO_SCORES,
+// so the Golden Boot only live-merges games that finished since the last commit.
+const KO_SCORES_COMMITTED=new Set(Object.keys(KO_SCORES));
 // Each participant's bracket picks: winners by round in bracket order
 // (R32: 16, R16: 8, QF: 4, SF: 2, final). Filled once the Round of 32 is set
 // and participants submit their brackets.
@@ -2070,17 +2074,39 @@ function teamStatus(team){
   return{label:`Eliminated · ${ord} in Group ${g}`,cls:'elim'};
 }
 
-// Committed SCORERS + live goals from any match that finished since the last
-// bot commit (matches not yet in CONFIRMED_SCORES). Own goals excluded.
+// {matchNum: [team0, team1]} for every knockout match with resolved teams,
+// in bracket-slot order (so index 0 matches live scorers' "home" side).
+function koTeamsMap(){
+  const m={};
+  KO_R32_ORDER.forEach(num=>{m[num]=r32Teams(KNOCKOUT_R32.find(x=>x.num===num).slot);});
+  const wOf=n=>{const t=m[n];return t?koWinner(t[0],t[1]):'';};
+  [['R16'],['QF'],['SF'],['F']].forEach(([k])=>{(KNOCKOUT_LATER[k]||[]).forEach(x=>{m[x.num]=[wOf(x.f[0]),wOf(x.f[1])];});});
+  const tp=KNOCKOUT_LATER.THIRD;
+  if(tp){const lo=fn=>{const t=m[fn],w=t?koWinner(t[0],t[1]):'';return w?(w===t[0]?t[1]:t[0]):'';};m[tp.num]=[lo(tp.f[0]),lo(tp.f[1])];}
+  return m;
+}
+
+// Committed SCORERS + live goals from any match that finished since the last bot
+// commit (group matches not yet in CONFIRMED_SCORES; knockout matches not yet in
+// the committed KO_SCORES snapshot). Own goals excluded.
 function goldenBootTally(){
   const key=(p,t)=>p+'||'+t;
   const map=new Map();
   SCORERS.forEach(s=>map.set(key(s.p,s.t),{p:s.p,t:s.t,g:s.g}));
+  const koTeams=koTeamsMap();
   Object.keys(liveData).forEach(k=>{
-    if(CONFIRMED_SCORES[k])return;            // already in committed SCORERS
     const ld=liveData[k];
     if(!ld||ld.state!=='post'||!ld.scorers)return;
-    const parts=k.split('|'),h=parts[1],a=parts[2];
+    let h,a;
+    if(k.slice(0,3)==='KO|'){                 // knockout match: resolve real teams
+      const t=koTeams[k.slice(3)];
+      if(!t||!t[0]||!t[1])return;
+      if(KO_SCORES_COMMITTED.has([t[0],t[1]].slice().sort().join('|')))return; // already committed
+      h=t[0];a=t[1];
+    }else{
+      if(CONFIRMED_SCORES[k])return;          // already in committed SCORERS
+      const parts=k.split('|');h=parts[1];a=parts[2];
+    }
     const add=(list,team)=>(list||[]).forEach(s=>{
       if(s.og)return;
       const kk=key(s.name,team),cur=map.get(kk);
