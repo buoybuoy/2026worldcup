@@ -408,6 +408,7 @@
   .kb-round { display: flex; flex-direction: column; min-width: 184px; padding-right: 28px; }
   .kb-round:last-child { padding-right: 0; }
   .kb-round-title { flex: 0 0 auto; text-align: center; font-family: 'Teko', sans-serif; font-size: 16px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-secondary); padding: 4px 0 10px; }
+  .kb-round-pts { display: block; font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--green); margin-top: 1px; }
   .kb-cell { flex: 1 1 0; position: relative; display: flex; align-items: center; padding: 5px 0; }
   .kb-box { width: 100%; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; }
   .kb-box.proj { border-color: var(--green); }
@@ -1778,12 +1779,18 @@ function renderKnockoutPred(name){
   // Highest KO score still reachable: points earned + points still earnable on
   // picks whose team is alive (matches the leaderboard's Max column).
   const maxPts=pts+koRemaining(name);
+  // Points earned per round: correct picks × the round's value.
+  const roundPts=(picks,set,val)=>picks.reduce((s,t)=>s+(set.has(t)?val:0),0);
+  const p32=roundPts(r32,W.r32,KO_SCORING.R32),p16=roundPts(r16,W.r16,KO_SCORING.R16),
+        pQF=roundPts(qf,W.qf,KO_SCORING.QF),pSF=roundPts(sf,W.sf,KO_SCORING.SF),
+        pF=(kp.final&&kp.final===champ)?KO_SCORING.F:0;
+  const lbl=n=>`${n} pt${n===1?'':'s'}`;
   let html=`<div class="kp-subtitle">${pts} pts so far · max ${maxPts}</div><div class="kb-scroll"><div class="kb kb-compact">`;
-  html+=koColumn('Round of 32',r32boxes,false);
-  html+=koColumn('Round of 16',pairBoxes(KNOCKOUT_LATER.R16,r32,A.r32w,r16,'r16'),false);
-  html+=koColumn('Quarterfinals',pairBoxes(KNOCKOUT_LATER.QF,r16,A.r16w,qf,'qf'),false);
-  html+=koColumn('Semifinals',pairBoxes(KNOCKOUT_LATER.SF,qf,A.qfw,sf,'sf'),false);
-  html+=koColumn('Final',pairBoxes(KNOCKOUT_LATER.F,sf,A.sfw,[kp.final||''],'final'),true);
+  html+=koColumn('Round of 32',r32boxes,false,lbl(p32));
+  html+=koColumn('Round of 16',pairBoxes(KNOCKOUT_LATER.R16,r32,A.r32w,r16,'r16'),false,lbl(p16));
+  html+=koColumn('Quarterfinals',pairBoxes(KNOCKOUT_LATER.QF,r16,A.r16w,qf,'qf'),false,lbl(pQF));
+  html+=koColumn('Semifinals',pairBoxes(KNOCKOUT_LATER.SF,qf,A.qfw,sf,'sf'),false,lbl(pSF));
+  html+=koColumn('Final',pairBoxes(KNOCKOUT_LATER.F,sf,A.sfw,[kp.final||''],'final'),true,lbl(pF));
   // Champion line — who they picked to win it all
   const fin=kp.final||'';
   const champCorrect=!!fin&&fin===champ, champElim=out.has(fin);
@@ -2005,7 +2012,7 @@ function koShortDate(d){const dt=new Date(d+'T12:00:00');const m=['Jan','Feb','M
 function koShortTime(t){const[h,mn]=t.split(':').map(Number);const ap=h>=12?'PM':'AM';const h12=h%12||12;return mn?`${h12}:${String(mn).padStart(2,'0')} ${ap}`:`${h12} ${ap}`;}
 function koMatchHead(m){return `M${m.num} · ${koShortDate(m.date)} · ${koShortTime(m.time)}`;}
 function koBox(head,rows,m,cls){return `<div class="kb-box${cls?' '+cls:''}">${head?`<div class="kb-box-head">${esc(head)}</div>`:''}${rows}${m&&m.city?`<div class="kb-box-foot" title="${esc(m.venue+', '+m.city)}">${esc(m.city)}</div>`:''}</div>`;}
-function koColumn(title,boxes,isLast){let h=`<div class="kb-round"><div class="kb-round-title">${esc(title)}</div>`;boxes.forEach((bx,i)=>{h+=`<div class="kb-cell">${bx}${(!isLast&&i%2===0)?'<span class="kb-vert"></span>':''}</div>`;});return h+'</div>';}
+function koColumn(title,boxes,isLast,ptsLabel){let h=`<div class="kb-round"><div class="kb-round-title">${esc(title)}${ptsLabel!=null?`<span class="kb-round-pts">${esc(ptsLabel)}</span>`:''}</div>`;boxes.forEach((bx,i)=>{h+=`<div class="kb-cell">${bx}${(!isLast&&i%2===0)?'<span class="kb-vert"></span>':''}</div>`;});return h+'</div>';}
 // Winner of a matchup: whichever team has won more knockout rounds (the loser
 // stopped at this match). Robust once a winner advances and later loses — using
 // the loser set alone breaks then, because both teams end up eliminated. '' if
