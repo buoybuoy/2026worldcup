@@ -1398,14 +1398,16 @@ function koFans(round,h,a){
   const winners=round==='final'?(KO_RESULTS.final?[KO_RESULTS.final]:[]):(KO_RESULTS[round]||[]);
   const wonBackers=winners.includes(h)?hSet:(winners.includes(a)?aSet:null);
   const base={};Object.keys(KNOCKOUT_PREDS).forEach(n=>base[n]=totalScore(n)-((wonBackers&&wonBackers.has(n))?V:0));
-  // Standing quality under a given result: how many rivals end up strictly above
-  // (worse rank) and, as a finer tiebreak, how many draw level (lost cushion) —
-  // so you also root against being *caught*, not just overtaken. Lower = better.
+  // Standing quality under a given result, lexicographically (lower = better):
+  //   1) fewest rivals strictly above you        (your rank)
+  //   2) fewest rivals level with you             (keep your cushion / not caught)
+  //   3) smallest total deficit to those above    (root against the leaders you're
+  //      chasing extending — not just against being passed)
   const standingKey=(P,winSet)=>{
-    const pv=base[P];let above=0,level=0;
+    const pv=base[P];let above=0,level=0,deficit=0;
     Object.keys(base).forEach(x=>{if(x===P)return;const xv=base[x]+(winSet.has(x)?V:0);
-      if(xv>pv)above++;else if(xv===pv)level++;});
-    return above*1e6+level;
+      if(xv>pv){above++;deficit+=xv-pv;}else if(xv===pv)level++;});
+    return above*1e9+level*1e6+deficit;
   };
   const hLean=[],aLean=[],noStake=[];
   noFans.forEach(P=>{
