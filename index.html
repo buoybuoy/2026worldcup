@@ -2073,6 +2073,15 @@ function renderKnockout(){
 }
 
 // Where a team currently stands (round / advanced / eliminated)
+// The two semifinal losers — they contest the third-place play-off, so they
+// aren't fully eliminated until that match is played.
+function thirdPlaceTeams(){
+  const A=koActual();
+  const t=[];
+  for(let k=0;k<2;k++){const a=A.qfw[2*k],b=A.qfw[2*k+1],w=A.sfw[k];
+    if(a&&b&&w)t.push(w===a?b:a);}
+  return t;
+}
 function teamStatus(team){
   const g=TEAM_TO_GROUP[team];
   if(!g)return{label:'—',cls:''};
@@ -2086,7 +2095,16 @@ function teamStatus(team){
     if(KO_RESULTS.final===team)return{label:'Champion 🏆',cls:'adv'};
     // rounds already won → the round they're currently in (or lost in next)
     const wins=['r32','r16','qf','sf'].reduce((c,r)=>c+((KO_RESULTS[r]||[]).includes(team)?1:0),0);
-    if((KO_RESULTS.out||[]).includes(team))return{label:`Eliminated · ${ROUND[wins]}`,cls:'elim'};
+    if((KO_RESULTS.out||[]).includes(team)){
+      // Semifinal losers still have the third-place play-off to play.
+      const third=thirdPlaceTeams();
+      if(wins===3&&third.includes(team)){
+        const other=third.find(t=>t!==team),sc=other?koScore(team,other):null;
+        if(!sc)return{label:'In · 3rd-Place Match',cls:'adv'};
+        return sc[0]>sc[1]?{label:'3rd Place 🥉',cls:'adv'}:{label:'4th Place',cls:'elim'};
+      }
+      return{label:`Eliminated · ${ROUND[wins]}`,cls:'elim'};
+    }
     return{label:`In · ${ROUND[wins]}`,cls:'adv'};
   }
   return{label:`Eliminated · ${ord} in Group ${g}`,cls:'elim'};
